@@ -24,6 +24,7 @@
       "js": [
         "bundled-banlists.js",
         "enhancer-core.js",
+        "duel-events.js",
         "content.js"
       ],
       "css": [

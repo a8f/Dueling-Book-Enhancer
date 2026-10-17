@@ -26,6 +26,12 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 
 Replay controls are intentionally not modified in this release.
 
+An internal [duel event framework](docs/duel-events.md) supports future features
+that react to all incoming duel messages, including card activations, attacks,
+thumbs up, thinking, typing, and lifecycle events. It includes arrival/execution
+stages, card/player filters, and a guarded native life-point action helper. No gameplay
+automation rules are enabled by default.
+
 ## Install in Chrome
 
 1. Unzip the download.

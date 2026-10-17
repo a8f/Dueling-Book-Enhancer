@@ -1346,6 +1346,7 @@
     ensureCustomSortButton();
     syncRpsControls();
     installDeckLoadHook();
+    if (window.DBEnhancerDuelEvents) window.DBEnhancerDuelEvents.install();
     installObservers();
     applyRoomLayout(true);
     applyCustomColors();
@@ -1361,6 +1362,7 @@
       ensureCustomSortButton();
       syncRpsControls();
       const deckLoadHookInstalled = installDeckLoadHook();
+      if (window.DBEnhancerDuelEvents) window.DBEnhancerDuelEvents.install();
       const deckConstructor = document.getElementById("deck_constructor");
       const deckConstructorVisible = isVisible(deckConstructor);
       if (!deckConstructorVisible) {
@@ -1469,6 +1471,9 @@
   postToBridge("request-settings");
   window.DBEnhancerDiagnostics = {
     version: ENHANCER_VERSION,
+    duelEvents: function duelEventsDiagnostics() {
+      return window.DBEnhancerDuelEvents ? window.DBEnhancerDuelEvents.diagnostics() : null;
+    },
     cardpool: function cardpoolDiagnostics() {
       const cardpool = document.querySelector("#search .custom_cb");
       const regions = customSearchRegionInputs();
