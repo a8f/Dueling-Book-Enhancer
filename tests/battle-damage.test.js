@@ -19,6 +19,22 @@ test("battle calculation covers attack, defense, direct, ties and unknown stats"
   assert.equal(battle(1000, { atk: "?", position: "attack" }), null);
 });
 
+test("battle automation setting disables new prompts and closes an existing suggestion", () => {
+  const h = harness();
+  h.attack();
+  assert.equal(h.panel().hidden, false);
+  h.settings.battleDamageConfirmation = false;
+  h.feature.settingsChanged();
+  assert.equal(h.panel().hidden, true);
+  h.attack();
+  h.feature.tick();
+  assert.equal(h.panel().hidden, true);
+  assert.deepEqual(h.commands, []);
+  h.settings.battleDamageConfirmation = true;
+  h.attack();
+  assert.equal(h.panel().hidden, false);
+});
+
 test("ordered damage modifiers are removable and can defer calculation", () => {
   const calculator = createCalculator();
   const battle = { attacker: { atk: 2400 }, target: null };
@@ -31,6 +47,7 @@ test("ordered damage modifiers are removable and can defer calculation", () => {
 });
 
 function harness() {
+  const settings = { battleDamageConfirmation: true };
   const elements = [];
   let shadow;
   function element(tag) {
@@ -71,14 +88,14 @@ function harness() {
     DBEnhancerBattleDamage: createCalculator() };
   page.DBEnhancerDuelEvents = createRuntime(page);
   const document = { createElement: element, body: element("body") };
-  const feature = createFeature({ window: page, document });
+  const feature = createFeature({ window: page, document, getSettings: () => settings });
   feature.initialize();
   page.DBEnhancerDuelEvents.install();
   function attack(direct = false) {
     if (direct) page.attackDirectly(opponent, { play: "Attack directly", id: 1 });
     else page.attack(opponent, { play: "Attack", attacking_id: 1, attacked_id: 2 });
   }
-  return { page, self, opponent, feature, attacker, target, commands, attack,
+  return { page, self, opponent, feature, attacker, target, commands, attack, settings,
     panel: () => elements.find(e => e.id === "dbx-battle-damage"),
     dialog: () => elements.find(e => e.tag === "section"),
     ok: () => elements.find(e => e.tag === "button" && e.textContent.startsWith("OK")),

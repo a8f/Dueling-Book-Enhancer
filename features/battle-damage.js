@@ -280,11 +280,19 @@
   }
 
   return {
-    settingsKeys: [],
+    settingsKeys: ["battleDamageConfirmation"],
+    settingsChanged() {
+      if (context.getSettings && !context.getSettings().battleDamageConfirmation) close();
+    },
     initialize() {
       if (initialized || !page.DBEnhancerDuelEvents) return;
       initialized = true;
-      page.DBEnhancerDuelEvents.register({ id: "battle-damage-confirmation", includeNonLive: true, run: observe });
+      page.DBEnhancerDuelEvents.register({ id: "battle-damage-confirmation", includeNonLive: true,
+        run(event, actions) {
+          if (context.getSettings && !context.getSettings().battleDamageConfirmation) { close(); return; }
+          observe(event, actions);
+        }
+      });
       page.DBEnhancerDuelEvents.register({ id: "battle-damage-invalidation", includeNonLive: true,
         when: { stage: "receive" },
         run(event) {

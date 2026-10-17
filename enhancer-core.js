@@ -157,6 +157,7 @@
       hostDefaults: { format: "au", type: "s", rules: "*", duelNote: "", duelPassword: "", watching: true, classic: false, tagDuel: false, watchNote: "", watchPassword: "", preserveLastUsed: false },
       rememberCardList: true, deckCardpools: {}, showGridLines: true,
       rpsEnhancements: true, autoStartRps: false, autoPickRps: false,
+      autoPayActivationCosts: false, battleDamageConfirmation: true,
       customSort: { groups: createDefaultGroups() },
       customBanlists: bundled,
       deletedBundledBanlists: [],
@@ -251,6 +252,8 @@
     result.showGridLines = safe.showGridLines !== false;
     result.autoPickRps = safe.autoPickRps === true;
     result.rpsEnhancements = safe.rpsEnhancements !== false;
+    result.autoPayActivationCosts = safe.autoPayActivationCosts === true;
+    result.battleDamageConfirmation = safe.battleDamageConfirmation !== false;
     result.autoStartRps = safe.autoStartRps === true;
     if (result.autoStartRps) result.autoPickRps = true;
     result.customSort.groups = sanitizeGroups(isObject(safe.customSort) ? safe.customSort.groups : null);

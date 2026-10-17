@@ -106,6 +106,7 @@ input[type="checkbox"] { accent-color:var(--accent-strong); height:18px; width:1
 .remember-card-list .preserve-control { padding:0; }
 .setting-description { color:var(--muted); line-height:1.5; margin:10px 0 0 28px; }
 .rps-settings { max-width:760px; padding:18px 22px; }
+.rps-settings + .rps-settings { margin-top:16px; }
 .rps-settings .preserve-control { padding:0; }
 .rps-settings .check-control { margin-top:20px; }
 .grid-lines-control { margin-bottom:18px; max-width:360px; }

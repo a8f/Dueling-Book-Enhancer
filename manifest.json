@@ -26,6 +26,7 @@
         "enhancer-core.js",
         "duel-events.js",
         "battle-damage.js",
+        "activation-costs.js",
         "lifecycle.js",
         "features/appearance.js",
         "features/rooms.js",
@@ -33,6 +34,7 @@
         "features/sorting.js",
         "features/rps.js",
         "features/battle-damage.js",
+        "features/activation-costs.js",
         "content.js"
       ],
       "css": [

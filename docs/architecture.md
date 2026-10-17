@@ -20,6 +20,7 @@ so the same module works in a page, a service worker and Node tests.
 | `sorting.js` | Custom Sort control and native deck-sort integration |
 | `rps.js` | RPS controls, saved modes and per-duel selection state |
 | `battle-damage.js` | Incoming attack confirmation UI and pending battle lifecycle |
+| `activation-costs.js` | Opt-in spell/trap activation LP payments |
 
 Each factory receives page dependencies, a settings accessor, a command sender
 and its own lifecycle bindings. Feature state stays inside the factory closure.
@@ -37,6 +38,8 @@ polling is a fallback when that native function is unavailable.
 See [duel events](duel-events.md) for event timing, filtering and action helpers.
 `battle-damage.js` provides a separate pure calculator and ordered modifier API;
 see [battle damage](battle-damage.md). It loads before the feature UI.
+`activation-costs.js` contains the conservative, pure LP cost parser used by
+`features/activation-costs.js`; see [activation costs](activation-costs.md).
 
 To add a page feature, create a factory with `initialize`, optional `tick`,
 `settingsChanged`, `settingsKeys` and `diagnostics`, then load it before

@@ -22,7 +22,9 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 - Reveal or mask either saved Host password with a state-matched eye icon.
 - Choose a saved RPS mode: Manual, Random on tie, or Automatic.
 - Click Automatic to pick randomly now, repeat after ties, and start future duels automatically. Random on tie waits for your first manual card choice.
-- Disable all RPS controls and automatic picks from the Rock Paper Scissors section in settings.
+- Disable all RPS controls and automatic picks under Automation in settings.
+- Group RPS, battle damage, and spell/trap LP costs under Automation in settings; battle damage suggestions can be disabled independently.
+- Opt in to automatic LP cost payment for your own spell/trap activations. Detects clear fixed and half-LP costs in modern text and simple older Edison wording; ambiguous effects, monster effects, upkeep, and Apply effect actions stay manual. See [activation costs](docs/activation-costs.md).
 - Confirm battle damage you owe with an OK/Cancel popup using current board ATK/DEF, including your own attacks into stronger monsters. Zero-damage battles stay quiet. LP changes only after OK; cancel stopped attacks or special damage effects.
 - Update the open damage popup for Honest/Kalut hand activations or discards, counting each copy once and reconciling matching board stat edits. Effects are assumed to resolve; cancel if negated.
 - Reopen the popup for a late Honest/Kalut discard after OK, charging only additional damage or offering a refund against LP already taken.

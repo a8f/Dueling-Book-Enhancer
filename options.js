@@ -931,6 +931,8 @@
     document.getElementById("show-grid-lines").checked =
       currentSettings.showGridLines;
     document.getElementById("rps-enhancements").checked = currentSettings.rpsEnhancements;
+    document.getElementById("auto-pay-activation-costs").checked = currentSettings.autoPayActivationCosts;
+    document.getElementById("battle-damage-confirmation").checked = currentSettings.battleDamageConfirmation;
     const rpsMode = currentSettings.autoStartRps ? "automatic" : currentSettings.autoPickRps ? "repeat" : "manual";
     ["manual", "repeat", "automatic"].forEach(mode => {
       document.getElementById("rps-mode-" + mode).checked = mode === rpsMode;
@@ -974,6 +976,8 @@
     candidate.showGridLines =
       document.getElementById("show-grid-lines").checked;
     candidate.rpsEnhancements = document.getElementById("rps-enhancements").checked;
+    candidate.autoPayActivationCosts = document.getElementById("auto-pay-activation-costs").checked;
+    candidate.battleDamageConfirmation = document.getElementById("battle-damage-confirmation").checked;
     candidate.autoStartRps = document.getElementById("rps-mode-automatic").checked;
     candidate.autoPickRps = candidate.autoStartRps || document.getElementById("rps-mode-repeat").checked;
     candidate.customSort.groups = readSortGroupsFromDom();
@@ -1154,7 +1158,7 @@
   document.getElementById("reset-settings").addEventListener("click", function reset() {
     if (saving) return;
     const confirmed = window.confirm(
-      "Reset rooms, host defaults, Card Pools, Custom Sort, colors, and appearance?"
+      "Reset rooms, host defaults, automation, Card Pools, Custom Sort, colors, and appearance?"
     );
     if (!confirmed) return;
     resetRequested = true;
