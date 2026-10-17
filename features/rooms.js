@@ -24,23 +24,32 @@
     const previous = String(select.value || "");
     const enabled = new Set(selectedRoomIds().filter(id => id !== "ar"));
     const byValue = new Map(Array.from(select.options).map(option => [String(option.value), option]));
+    const ordered = [];
     state.settings.roomOrder.forEach(function orderFormat(roomId) {
       if (roomId === "ar") return;
       const option = byValue.get(roomId);
       if (!option) return;
-      option.hidden = !enabled.has(roomId);
-      option.disabled = !enabled.has(roomId);
-      select.appendChild(option);
+      const hidden = !enabled.has(roomId);
+      if (option.hidden !== hidden) option.hidden = hidden;
+      if (option.disabled !== hidden) option.disabled = hidden;
+      ordered.push(option);
     });
     const solo = byValue.get("so");
     if (solo) {
-      solo.hidden = false;
-      solo.disabled = false;
-      select.appendChild(solo);
+      if (solo.hidden) solo.hidden = false;
+      if (solo.disabled) solo.disabled = false;
+      ordered.push(solo);
     }
-    if (previous === "so" || enabled.has(previous)) select.value = previous;
-    else if (enabled.size) select.value = state.settings.roomOrder.find(id => enabled.has(id));
-    else if (solo) select.value = "so";
+    // Preserve the native unknown options, and only move nodes if order changed.
+    const known = new Set(ordered);
+    const desired = Array.from(select.options).filter(option => !known.has(option)).concat(ordered);
+    if (desired.some((option, index) => select.options[index] !== option)) {
+      ordered.forEach(option => select.appendChild(option));
+    }
+    const next = previous === "so" || enabled.has(previous) ? previous
+      : enabled.size ? state.settings.roomOrder.find(id => enabled.has(id))
+      : solo ? "so" : previous;
+    if (String(select.value || "") !== next) select.value = next;
   }
 
   function getFormatsScrollLeft() {

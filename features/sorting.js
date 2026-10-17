@@ -140,6 +140,7 @@
     return null;
   }
 
+  let positionedLayout = null;
   function positionCustomSortInStack(button) {
     const deckConstructor = document.getElementById("deck_constructor");
     const sortButton = findDeckRailControl(deckConstructor, "sort_btn", "Sort");
@@ -152,6 +153,13 @@
 
     const rail = sortButton.parentElement;
     if (!rail) return false;
+    const lowerButtons = Array.from(rail.querySelectorAll(
+      ":scope > .info_btn, :scope > .locked_btn, :scope > .unlocked_btn, :scope > .skill_btn"
+    ));
+    const tooltips = Array.from(document.querySelectorAll("#randomize_tooltip, #lock_tooltip, #skill_tooltip"));
+    const layout = [button, rail, sortButton, sortButton.style.cssText, randomizeButton, ...lowerButtons, ...tooltips];
+    if (button.parentElement === rail && positionedLayout &&
+        layout.length === positionedLayout.length && layout.every((value, index) => value === positionedLayout[index])) return true;
     if (button.parentElement !== rail) rail.appendChild(button);
 
     const sortTop = numericStyle(sortButton, "top");
@@ -167,11 +175,7 @@
         : (Number.isFinite(sortHeight) ? sortHeight : 27) + 5;
     const customTop = Number.isFinite(randomizeTop) ? randomizeTop : sortTop + rowGap;
 
-    rail
-      .querySelectorAll(
-        ":scope > .info_btn, :scope > .locked_btn, " +
-          ":scope > .unlocked_btn, :scope > .skill_btn"
-      )
+    lowerButtons
       .forEach(function shiftLowerRailButton(railButton) {
         const originalTop = Number.parseFloat(
           railButton.dataset.dbxOriginalTop || numericStyle(railButton, "top")
@@ -181,8 +185,7 @@
         railButton.style.top = originalTop + rowGap + "px";
       });
 
-    document
-      .querySelectorAll("#randomize_tooltip, #lock_tooltip, #skill_tooltip")
+    tooltips
       .forEach(function shiftLowerRailTooltip(tooltip) {
         const originalTop = Number.parseFloat(
           tooltip.dataset.dbxOriginalTop || numericStyle(tooltip, "top")
@@ -199,6 +202,7 @@
     button.style.width = sortStyle.width;
     button.style.height = sortStyle.height;
     button.style.display = "flex";
+    positionedLayout = layout;
     return true;
   }
 
@@ -247,7 +251,11 @@
   }
 
 
-  function refresh() { ensureCustomSortButton(); updateCustomSortButtonVisibility(); }
+  function refresh() {
+    if (!isVisible(document.getElementById("deck_constructor"))) return;
+    ensureCustomSortButton();
+    updateCustomSortButtonVisibility();
+  }
   return { initialize: refresh, tick: refresh };
 
 });

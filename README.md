@@ -30,6 +30,7 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 - Confirm battle damage you owe with an OK/Cancel popup using current board ATK/DEF, including your own attacks into stronger monsters. Zero-damage battles stay quiet. LP changes only after OK; cancel stopped attacks or special damage effects.
 - Update the open damage popup for Honest/Kalut hand activations or discards, counting each copy once and reconciling matching board stat edits. Effects are assumed to resolve; cancel if negated.
 - Reopen the popup for a late Honest/Kalut discard after OK, charging only additional damage or offering a refund against LP already taken.
+- Show a connection warning for offline/closed sockets, unanswered heartbeats (15 seconds), server silence (45 seconds), or supported duel actions awaiting a matching server response (10 seconds). Warnings clear when the relevant condition recovers; detection does not resend actions or force reconnection.
 
 Replay controls are intentionally not modified in this release.
 

@@ -22,12 +22,35 @@ so the same module works in a page, a service worker and Node tests.
 | `battle-damage.js` | Incoming attack confirmation UI and pending battle lifecycle |
 | `activation-costs.js` | Opt-in spell/trap activation LP payments |
 | `hand-shuffle.js` | Opt-in turn-draw shuffle and conservative batching of other draws |
+| `connection-health.js` | Socket, heartbeat, server silence and duel response monitoring |
 
 Hand-shuffle aggressiveness controls the draw delay (3s to 0.5s), pointer-away
 duration (1s to 0.15s), and clearance (100px to 30px). The default is 80/100.
 The feature wraps the native outgoing `Send` function to cancel pending work
 immediately on a hand-shuffle command, including from already-bound native
 handlers. Recovery ticks reinstall the hook if the site replaces `Send`.
+
+Connection health observes the native `websocket` with event listeners and a
+pass-through `send` wrapper, preserving native handlers and messages. Socket
+replacement removes old listeners and restores the previous send method. It
+uses the shared recovery tick, with no added polling interval or heartbeat
+traffic. The banner reports offline/failed sockets, native reconnection, a
+heartbeat unanswered for 15 seconds, no valid server messages for 45 seconds,
+or a supported local duel command awaiting its echo for 10 seconds. Unrelated
+traffic cannot acknowledge a heartbeat or duel command. Only known echoing
+commands are tracked; choices such as Ready that can wait on another player
+are excluded. Card instance IDs are matched where stable; draws and mills
+match one response per command because queued draws can send stale top-card
+IDs (as seen in the captures). Receipt acknowledges server acceptance, not
+animation completion or proof of identical board state.
+
+Timed warnings wait while the tab is hidden and get a new grace period after
+resuming from suspension or returning to the tab. Native reconnection, a new
+socket, a changed duel/account, or leaving a live duel clears obsolete pending
+commands. The monitor never retries commands or initiates reconnects.
+`DBEnhancerDiagnostics.connectionHealth()` exposes status, monotonic receive /
+heartbeat timestamps, and the bounded pending-command list without retaining
+raw traffic or credentials.
 
 Each factory receives page dependencies, a settings accessor, a command sender
 and its own lifecycle bindings. Feature state stays inside the factory closure.
@@ -40,6 +63,13 @@ their native elements on recovery ticks; replacing an element disconnects its
 previous binding. Features retain native selectors and hooks close to the code
 that uses them. Native deck-load completion remains the normal restoration path;
 polling is a fallback when that native function is unavailable.
+
+Recovery checks avoid moving host options whose order is already correct and
+skip sort-button layout while Deck Constructor is hidden. Sort layout is reused
+until its native control or rail changes. Deck style/class notifications run
+the same synchronization checks as recovery ticks rather than rebuilding custom
+lists unconditionally; card data growth and replaced controls still trigger a
+rebuild.
 
 `duel-events.js` provides a separate registration API for duel-reactive features.
 See [duel events](duel-events.md) for event timing, filtering and action helpers.

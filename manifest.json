@@ -35,6 +35,7 @@
         "features/battle-damage.js",
         "features/activation-costs.js",
         "features/hand-shuffle.js",
+        "features/connection-health.js",
         "content.js"
       ],
       "css": [

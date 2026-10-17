@@ -315,7 +315,7 @@
       if (firstNative) setBanlistValue(select, firstNative.value);
       if (typeof window.updateCardLimits === "function") window.updateCardLimits();
     }
-    syncedControls = { select, cardpool, cards: window.Cards, banlists: window.Banlists };
+    syncedControls = { select, cardpool, cards: window.Cards, cardCount: cards.length, banlists: window.Banlists };
     return true;
   }
   function currentDeckId() {
@@ -517,9 +517,7 @@
   function apply() { state.lastDeckId = ""; syncCustomBanlists(); }
   function refresh() {
     const deckConstructor = document.getElementById("deck_constructor");
-    const replaced = lifecycle.observe("deck", deckConstructor, () => {
-      if (isVisible(deckConstructor)) syncCustomBanlists();
-    });
+    const replaced = lifecycle.observe("deck", deckConstructor, refresh);
     const hooked = installDeckLoadHook();
     if (!isVisible(deckConstructor)) {
       state.deckConstructorVisible = false; state.lastDeckId = "";
@@ -527,7 +525,6 @@
     }
     if (replaced || !state.deckConstructorVisible) {
       state.deckConstructorVisible = true; state.lastDeckId = "";
-      syncCustomBanlists();
     }
     if (!hooked) trackCurrentDeck();
     const enabled = state.settings.customBanlists.filter(list => state.settings.cardPools.enabled[list.id]).length;
@@ -539,9 +536,11 @@
       return id && (option.dataset.dbxCardpoolId !== id || option.disabled === cardpoolItemEnabled(id));
     });
     const select = document.querySelector("#deck_constructor #banlists");
+    const selectCount = select ? select.querySelectorAll("option[data-dbx-banlist]").length : 0;
     if (!syncedControls || syncedControls.select !== select || syncedControls.cardpool !== cardpool ||
         syncedControls.cards !== window.Cards || syncedControls.banlists !== window.Banlists ||
-        internal !== enabled || count !== enabled || nativeOutOfSync) syncCustomBanlists();
+        syncedControls.cardCount !== (Array.isArray(window.Cards) ? window.Cards.length : 0) ||
+        internal !== enabled || count !== enabled || selectCount !== enabled || nativeOutOfSync) syncCustomBanlists();
   }
   return {
     initialize() {

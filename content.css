@@ -64,3 +64,31 @@ html.dbx-hide-greenlines #greenlines {
 #dbx-auto-rps-control[hidden] {
   display: none !important;
 }
+
+#dbx-connection-health {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(640px, calc(100vw - 24px));
+  padding: 12px 16px;
+  border: 1px solid #f4bb54;
+  border-radius: 8px;
+  background: #33250d;
+  color: #fff3d6;
+  box-shadow: 0 4px 18px #0008;
+  font: 14px/1.45 system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
+
+#dbx-connection-health[data-state="disconnected"] {
+  border-color: #ff8383;
+  background: #3c1717;
+  color: #fff0f0;
+}
+
+#dbx-connection-health[hidden] { display: none; }
