@@ -23,7 +23,9 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 - Choose a saved RPS mode: Manual, Random on tie, or Automatic.
 - Click Automatic to pick randomly now, repeat after ties, and start future duels automatically. Random on tie waits for your first manual card choice.
 - Disable all RPS controls and automatic picks from the Rock Paper Scissors section in settings.
-- Confirm incoming battle damage with an OK/Cancel popup using current board ATK/DEF, including edited stats and direct attacks. LP changes only after OK; cancel stopped attacks or special damage effects.
+- Confirm battle damage you owe with an OK/Cancel popup using current board ATK/DEF, including your own attacks into stronger monsters. Zero-damage battles stay quiet. LP changes only after OK; cancel stopped attacks or special damage effects.
+- Update the open damage popup for Honest/Kalut hand activations or discards, counting each copy once and reconciling matching board stat edits. Effects are assumed to resolve; cancel if negated.
+- Reopen the popup for a late Honest/Kalut discard after OK, charging only additional damage or offering a refund against LP already taken.
 
 Replay controls are intentionally not modified in this release.
 
