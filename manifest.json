@@ -25,12 +25,14 @@
         "bundled-banlists.js",
         "enhancer-core.js",
         "duel-events.js",
+        "battle-damage.js",
         "lifecycle.js",
         "features/appearance.js",
         "features/rooms.js",
         "features/card-pools.js",
         "features/sorting.js",
         "features/rps.js",
+        "features/battle-damage.js",
         "content.js"
       ],
       "css": [

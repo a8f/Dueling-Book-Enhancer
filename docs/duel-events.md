@@ -4,8 +4,8 @@
 Register features from a script loaded after it (add the script to the MAIN
 content scripts in `manifest.json`). Registrations can happen before the site
 finishes loading. `content.js` installs available hooks and checks every 500 ms
-for dispatchers and handlers loaded or replaced later. No gameplay rules are
-enabled by default. All incoming `Duel` messages reaching the site's
+for dispatchers and handlers loaded or replaced later. The battle damage feature
+registers confirmation and invalidation rules using this API. All incoming `Duel` messages reaching the site's
 `duelResponse` dispatcher are observable, including unknown future `play` names.
 This is a duel-message framework, not a feed of unrelated account/lobby traffic
 or local mouse movements that the site does not send as duel messages.

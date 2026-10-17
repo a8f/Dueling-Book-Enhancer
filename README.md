@@ -23,6 +23,7 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 - Choose a saved RPS mode: Manual, Random on tie, or Automatic.
 - Click Automatic to pick randomly now, repeat after ties, and start future duels automatically. Random on tie waits for your first manual card choice.
 - Disable all RPS controls and automatic picks from the Rock Paper Scissors section in settings.
+- Confirm incoming battle damage with an OK/Cancel popup using current board ATK/DEF, including edited stats and direct attacks. LP changes only after OK; cancel stopped attacks or special damage effects.
 
 Replay controls are intentionally not modified in this release.
 
@@ -32,8 +33,9 @@ For code structure, feature extension points and settings persistence, see
 An internal [duel event framework](docs/duel-events.md) supports future features
 that react to all incoming duel messages, including card activations, attacks,
 thumbs up, thinking, typing, and lifecycle events. It includes arrival/execution
-stages, card/player filters, and a guarded native life-point action helper. No gameplay
-automation rules are enabled by default.
+stages, card/player filters, and a guarded native life-point action helper. The
+battle damage popup uses this framework and a separate, extensible calculator;
+see [battle damage](docs/battle-damage.md) for future effect integration.
 
 ## Install in Chrome
 

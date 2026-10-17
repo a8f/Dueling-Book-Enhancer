@@ -19,6 +19,7 @@ so the same module works in a page, a service worker and Node tests.
 | `card-pools.js` | Native/custom pools, search regions and deck pool memory |
 | `sorting.js` | Custom Sort control and native deck-sort integration |
 | `rps.js` | RPS controls, saved modes and per-duel selection state |
+| `battle-damage.js` | Incoming attack confirmation UI and pending battle lifecycle |
 
 Each factory receives page dependencies, a settings accessor, a command sender
 and its own lifecycle bindings. Feature state stays inside the factory closure.
@@ -34,6 +35,8 @@ polling is a fallback when that native function is unavailable.
 
 `duel-events.js` provides a separate registration API for duel-reactive features.
 See [duel events](duel-events.md) for event timing, filtering and action helpers.
+`battle-damage.js` provides a separate pure calculator and ordered modifier API;
+see [battle damage](battle-damage.md). It loads before the feature UI.
 
 To add a page feature, create a factory with `initialize`, optional `tick`,
 `settingsChanged`, `settingsKeys` and `diagnostics`, then load it before
