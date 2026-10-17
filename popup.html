@@ -1,16 +1,26 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Dueling Book Enhancer</title>
-    <link rel="icon" type="image/png" href="icons/icon-32.png">
-    <link rel="stylesheet" href="popup.css">
-  </head>
-  <body>
-    <main>
-      <button id="open-settings" type="button">Open settings</button>
-    </main>
-    <script src="popup.js"></script>
-  </body>
-</html>
+<html lang="en" data-mode="dark" data-theme="cyan">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Dueling Book Enhancer</title><link rel="stylesheet" href="options.css"><link rel="stylesheet" href="popup.css"></head>
+<body>
+<header class="popup-header"><img src="icons/icon-48.png" width="36" height="36" alt=""><div><h1>Dueling Book Enhancer</h1><p>Quick settings</p></div></header>
+<main>
+<div class="quick-heading"><h2>Your shortcuts</h2><button id="customize-shortcuts" type="button" disabled>Customize</button></div>
+<fieldset id="quick-controls" disabled><legend class="sr-only">Pinned settings</legend><div id="quick-settings-list"></div></fieldset>
+<p id="no-shortcuts" class="empty-shortcuts" hidden>No shortcuts pinned. Choose Customize to add some, or open All settings.</p>
+<section id="shortcut-editor" aria-labelledby="shortcut-editor-heading" hidden>
+<h2 id="shortcut-editor-heading">Choose your shortcuts</h2>
+<p class="editor-help">Pin up to 4 controls. Pinning a control does not turn the setting on.</p>
+<fieldset id="editor-controls"><legend class="sr-only">Settings to show in the popup</legend><div id="shortcut-options"></div>
+<p id="shortcut-count" role="status" aria-live="polite"></p>
+<div class="editor-actions"><button id="cancel-customization" class="secondary-button" type="button">Cancel</button><button id="save-shortcuts" class="primary-button" type="button">Save shortcuts</button></div>
+</fieldset></section>
+<p id="popup-status" role="status" aria-live="polite">Loading settings...</p>
+<button id="retry-load" class="secondary-button" type="button" hidden>Retry loading</button>
+<nav id="popup-navigation" aria-label="More settings"><p class="popup-nav-label">Customize more</p>
+<button type="button" data-section="automation-heading"><span>Automation</span><span aria-hidden="true">›</span></button>
+<button type="button" data-section="rooms-heading"><span>Visible rooms</span><span aria-hidden="true">›</span></button>
+<button type="button" data-section="host-heading"><span>Host defaults</span><span aria-hidden="true">›</span></button>
+</nav>
+<button id="open-settings" class="primary-button" type="button">All settings <span aria-hidden="true">↗</span></button>
+</main><script src="enhancer-core.js"></script><script src="settings-client.js"></script><script src="popup.js"></script>
+</body></html>

@@ -14,7 +14,8 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Open Dueling Book Enhancer settings",
+    "default_title": "Dueling Book Enhancer",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
       "19": "icons/icon-19.png",

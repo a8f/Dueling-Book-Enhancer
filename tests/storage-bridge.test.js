@@ -165,3 +165,18 @@ test("bridge relays settings and deduplicates its two transports", async () => {
   await client.api.execute({ type: "get-settings" });
   assert.equal(posted.at(-1).settings.autoGoFirst, true);
 });
+
+
+test("popup quick changes use the shared writer and preserve other preferences and deck memory", async () => {
+  const h = harness();
+  const popup = h.client("chrome-extension://extension-test/popup.html").api;
+  const site = h.client("https://duelingbook.com/").api;
+  await site.execute({ type: "save-deck-cardpool", deckId: 42, cardpool: { kind: "native", value: "tcg" } });
+  await Promise.all([
+    site.execute({ type: "save-rps-mode", mode: "automatic" }),
+    popup.execute({ type: "update-preferences", changes: [{ path: ["battleDamageConfirmation"], value: false }] })
+  ]);
+  assert.equal(h.read().battleDamageConfirmation, false);
+  assert.equal(h.read().autoStartRps, true);
+  assert.equal(h.read().deckCardpools[42].value, "tcg");
+});

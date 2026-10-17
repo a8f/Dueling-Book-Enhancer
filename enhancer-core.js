@@ -5,6 +5,36 @@
 })(typeof window !== "undefined" ? window : typeof self !== "undefined" ? self : this, function createEnhancerCore(environment) {
   "use strict";
 
+  // Only self-contained switches belong in the popup. LP cost payment and RPS
+  // modes need their fuller explanations and stay on the Automation page.
+  const QUICK_SETTING_DEFINITIONS = Object.freeze([
+    { id: "battleDamageConfirmation", control: "battle-damage-confirmation", path: ["battleDamageConfirmation"], label: "Battle damage prompts",
+      on: "Shows damage you owe. Your LP changes only if you confirm.",
+      off: "Off: no battle damage prompts or LP adjustments from this feature. Adjust battle damage manually." },
+    { id: "autoShuffleAfterDraw", control: "auto-shuffle-after-draw", path: ["autoShuffleAfterDraw"], label: "Shuffle after finishing draws",
+      on: "Shuffles after you stop drawing and move your pointer away from the deck and draw menu.",
+      off: "Off: no shuffle after a batch of draws. The separate turn-draw setting still applies." },
+    { id: "autoGoFirst", control: "auto-go-first", path: ["autoGoFirst"], label: "Automatically choose First",
+      on: "Chooses First as soon as the turn-order choice is available, including after siding.",
+      off: "Off: choose First or Second yourself." },
+    { id: "rememberCardList", control: "remember-card-list", path: ["rememberCardList"], label: "Remember each deck's card filter",
+      on: "Saving a deck remembers its Card Pool filter, such as Edison or Goat. Loading it restores that filter.",
+      off: "Off: saving and loading decks won't remember or restore their Card Pool filters." },
+    { id: "preserveLastUsed", control: "preserve-last-used", path: ["hostDefaults", "preserveLastUsed"], label: "Reuse last hosted duel setup",
+      on: "Remembers your most recently hosted duel's options for the next time you host.",
+      off: "Off: use the Host Defaults configured in All settings." },
+    { id: "showGridLines", control: "show-grid-lines", path: ["showGridLines"], label: "Background grid lines",
+      on: "Shows the grid over Dueling Book's background.",
+      off: "Off: hides the background grid." }
+  ].map(definition => Object.freeze({ ...definition, path: Object.freeze(definition.path) })));
+  const DEFAULT_POPUP_SHORTCUTS = Object.freeze(["battleDamageConfirmation", "autoShuffleAfterDraw", "autoGoFirst"]);
+
+  function sanitizePopupShortcuts(value) {
+    if (!Array.isArray(value)) return [...DEFAULT_POPUP_SHORTCUTS];
+    const allowed = new Set(QUICK_SETTING_DEFINITIONS.map(definition => definition.id));
+    return [...new Set(value.filter(id => allowed.has(id)))].slice(0, 4);
+  }
+
   const ROOM_DEFINITIONS = Object.freeze([
     { id: "ar", label: "Ranked" },
     { id: "au", label: "Advanced (Unrated)" },
@@ -152,7 +182,7 @@
     NATIVE_CARDPOOL_DEFINITIONS.forEach(pool => { cardPoolEnabled[pool.id] = true; });
     bundled.forEach(list => { cardPoolEnabled[list.id] = false; });
     return {
-      schemaVersion: 2, appearance: { mode: "dark", theme: "cyan" },
+      schemaVersion: 2, appearance: { mode: "dark", theme: "cyan" }, popupShortcuts: [...DEFAULT_POPUP_SHORTCUTS],
       visibleRooms: visibleRooms, roomOrder: ROOM_DEFINITIONS.map(room => room.id),
       hostDefaults: { format: "au", type: "s", rules: "*", duelNote: "", duelPassword: "", watching: true, classic: false, tagDuel: false, watchNote: "", watchPassword: "", preserveLastUsed: false },
       rememberCardList: true, deckCardpools: {}, showGridLines: true,
@@ -237,6 +267,7 @@
     const appearance = isObject(safe.appearance) ? safe.appearance : {};
     result.appearance.mode = appearance.mode === "light" ? "light" : "dark";
     result.appearance.theme = ["cyan", "lavender", "autumn"].includes(appearance.theme) ? appearance.theme : "cyan";
+    result.popupShortcuts = sanitizePopupShortcuts(safe.popupShortcuts);
     const rooms = isObject(safe.visibleRooms) ? safe.visibleRooms : {}; const host = isObject(safe.hostDefaults) ? safe.hostDefaults : {};
     ROOM_DEFINITIONS.forEach(room => { result.visibleRooms[room.id] = rooms[room.id] !== false; });
     const roomIds = ROOM_DEFINITIONS.map(room => room.id); const order = Array.isArray(safe.roomOrder) ? safe.roomOrder : [];
@@ -424,6 +455,7 @@
   }
   return Object.freeze({
     COLOR_DEFINITIONS, CUSTOM_CARDPOOL_REGION_POLICY, DEFAULT_SETTINGS, FIELD_LIBRARY, HOST_FORMAT_OPTIONS, HOST_RULE_OPTIONS, HOST_TYPE_OPTIONS,
+    QUICK_SETTING_DEFINITIONS, DEFAULT_POPUP_SHORTCUTS, sanitizePopupShortcuts,
     NATIVE_CARDPOOL_DEFINITIONS, ROOM_DEFINITIONS, TYPE_DEFINITIONS, TYPE_ORDER, classifyCard, compareCards, composeColor, copy,
     createDefaultGroups, createDefaultSettings, customSortUsesDefaults, defaultRowsForTypes, getAvailableHostFormats, getRoomLayout,
     intersectFields, normalizeGroupRows, readCardValue, sanitizeCardpoolDescriptor, sanitizeSettings, selectAvailableHostFormat, splitColorValue, handShuffleTiming

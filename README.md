@@ -53,7 +53,7 @@ see [battle damage](docs/battle-damage.md) for future effect integration.
 3. Enable **Developer mode**.
 4. Click **Load unpacked**.
 5. Select the unzipped `dueling-book-enhancer` folder.
-6. Click the extension's toolbar button to open settings. Clicking it again returns to the existing settings tab.
+6. Click the extension's toolbar button for quick settings. Choose a section shortcut or **All settings** to open the full settings page; an existing settings tab is reused. Choose **Customize** in the popup to pin up to four controls. Pinning a control does not enable it. The full page has searchable section navigation.
 7. Settings save automatically as you edit them. Check for **All changes saved** before closing the settings tab. Dueling Book receives saved changes automatically.
 
 For later updates, replace the folder contents, then click **Reload** on the extension card in `chrome://extensions`.

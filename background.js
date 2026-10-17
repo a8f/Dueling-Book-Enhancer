@@ -24,36 +24,47 @@ const store = DBEnhancerSettingsStore.create({
   })
 });
 
-// Open settings directly from the toolbar. Find our own extension context so
-// section anchors and settings tabs in other windows are reused as well.
+// Reuse our settings tab and window when opening from the quick-settings popup.
 let openingSettings = null;
-async function openSettings() {
+async function openSettings(section) {
   const url = chrome.runtime.getURL("options.html");
+  let existing;
   if (chrome.runtime.getContexts) {
     const contexts = await chrome.runtime.getContexts({ contextTypes: ["TAB"] });
-    const existing = contexts.find(context => context.documentUrl?.split("#")[0] === url && context.tabId >= 0);
-    if (existing) {
-      await chrome.tabs.update(existing.tabId, { active: true });
-      await chrome.windows.update(existing.windowId, { focused: true });
-      return;
-    }
+    existing = contexts.find(context => context.documentUrl?.split("#")[0] === url && context.tabId >= 0);
+  } else {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find(tab => tab.url?.split("#")[0] === url);
+    if (tab) existing = { tabId: tab.id, windowId: tab.windowId };
+  }
+  if (existing) {
+    await chrome.tabs.update(existing.tabId, { active: true, ...(section ? { url: url + "#" + section } : {}) });
+    await chrome.windows.update(existing.windowId, { focused: true });
+    return;
   }
   // Firefox and first-time opening use the browser's options-page handling.
-  await chrome.runtime.openOptionsPage();
+  if (section) await chrome.tabs.create({ url: url + "#" + section });
+  else await chrome.runtime.openOptionsPage();
 }
-chrome.action.onClicked.addListener(() => {
-  if (openingSettings) return;
-  openingSettings = openSettings().catch(error => console.error("Could not open settings:", error)).finally(() => {
-    openingSettings = null;
-  });
-});
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message || message.channel !== "dbx-settings" || sender.id !== chrome.runtime.id) return;
   const optionsPage = sender.url?.split("#")[0] === chrome.runtime.getURL("options.html");
+  const popup = sender.url === chrome.runtime.getURL("popup.html");
   const site = /^https:\/\/(www\.)?duelingbook\.com\//.test(sender.url || "");
-  if (!optionsPage && !site) return;
-  store.execute(message.command || {}, optionsPage).then(
+  if (!optionsPage && !popup && !site) return;
+  if (message.command?.type === "open-settings") {
+    if (!popup) return;
+    const section = message.command.section;
+    if (section && !["rooms-heading", "host-heading", "deck-heading", "automation-heading", "card-pools-heading", "sort-heading", "colors-heading"].includes(section)) {
+      respond({ ok: false, error: "Unknown settings section." });
+      return;
+    }
+    if (!openingSettings) openingSettings = openSettings(section).finally(() => { openingSettings = null; });
+    openingSettings.then(() => respond({ ok: true }), error => respond({ ok: false, error: error.message }));
+    return true;
+  }
+  store.execute(message.command || {}, optionsPage || popup).then(
     settings => respond({ ok: true, settings }),
     error => respond({ ok: false, error: error.message })
   );
