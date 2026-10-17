@@ -9,6 +9,8 @@
   const wrappers = new Map();
   let initialized = false;
   let nativePicker = false;
+  let concealedDeck = null;
+  let viewerMenu = null;
   const nativeDecorations = new Map();
   let lastRenderedState;
   let host, title, status, positions, resolve, wait, cancel, source, journal, previousFocus, effects, choices, confirm;
@@ -148,7 +150,25 @@
       if (page.viewing === "Deck") page.viewCards(page.player1.main_arr);
     }
   }
+  function syncDeckVisibility(value) {
+    // Keep native viewing state intact until the acknowledged move completes.
+    // Hiding only the window avoids a second network command racing the move.
+    const conceal = value?.state === "adding" || (concealedDeck && value?.state === "close-deck");
+    if (conceal && page.viewing === "Deck") {
+      const view = document.getElementById?.("view");
+      if (view?.style && !concealedDeck) {
+        concealedDeck = { node: view, visibility: view.style.getPropertyValue("visibility"), priority: view.style.getPropertyPriority("visibility") };
+        view.style.setProperty("visibility", "hidden", "important");
+      }
+    } else if (concealedDeck) {
+      const { node, visibility, priority } = concealedDeck;
+      if (visibility) node.style.setProperty("visibility", visibility, priority);
+      else node.style.removeProperty("visibility");
+      concealedDeck = null;
+    }
+  }
   function render(value) {
+    syncDeckVisibility(value);
     syncNativePicker(value);
     if (!value) { hide(); return; }
     if (["adding", "close-deck", "completed"].includes(value.state)) { hide(); lastRenderedState = value.state; return; }
@@ -231,6 +251,49 @@
     }
     lastRenderedState = value.state;
   }
+  function restoreViewerMenu() {
+    if (!viewerMenu) return;
+    const { node, style, parent } = viewerMenu;
+    node.classList.remove("dbx-native-card-menu");
+    if (style === null) node.removeAttribute("style");
+    else node.setAttribute("style", style);
+    if (node.isConnected && parent?.isConnected && node.parentNode !== parent) parent.appendChild(node);
+    viewerMenu = null;
+  }
+  function fitViewerMenu(card) {
+    const viewer = document.querySelector?.("#view > .content");
+    const anchor = card?.[0];
+    const node = document.getElementById?.("card_menu");
+    if (!viewer?.contains(anchor) || !node?.isConnected || (page.menu_card && page.menu_card[0] !== anchor)) return;
+    // Preserve the native menu and its width. Prefer scrolling in the original
+    // space above the card; move below only when that space cannot fit a row.
+    const face = anchor.querySelector?.(":scope > .content") || anchor;
+    const rect = face.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    viewerMenu = { node, style: node.getAttribute("style"), parent: node.parentNode };
+    page.TweenMax?.killTweensOf(node);
+    const content = node.querySelector("#card_menu_content");
+    if (content) page.TweenMax?.killTweensOf(content);
+    node.classList.add("dbx-native-card-menu");
+    const margin = 12, gap = 6;
+    const bounds = node.getBoundingClientRect();
+    const scale = node.offsetWidth > 0 ? bounds.width / node.offsetWidth : 1;
+    if (!(scale > 0)) return;
+    let top = bounds.top, space = page.innerHeight - margin * 2;
+    if (bounds.top < margin || bounds.bottom > page.innerHeight - margin) {
+      const below = Math.max(0, page.innerHeight - margin - rect.bottom - gap);
+      const above = Math.max(0, rect.top - gap - margin);
+      const useBelow = above < 20 * scale && below > above;
+      space = useBelow ? below : above;
+      top = useBelow ? rect.bottom + gap : rect.top - gap - Math.min(bounds.height, space);
+    }
+    node.style.setProperty("max-height", Math.max(1, space / scale) + "px", "important");
+    const height = Math.min(bounds.height, space);
+    top = Math.max(margin, Math.min(top, page.innerHeight - margin - height));
+    const left = Math.max(margin, Math.min(bounds.left, page.innerWidth - margin - bounds.width));
+    node.style.setProperty("top", ((Number.parseFloat(node.style.top) || 0) + (top - bounds.top) / scale) + "px", "important");
+    node.style.setProperty("left", ((Number.parseFloat(node.style.left) || 0) + (left - bounds.left) / scale) + "px", "important");
+  }
   function wrap(name, make) {
     const original = page[name];
     if (typeof original !== "function" || original === wrappers.get(name)) return;
@@ -262,7 +325,14 @@
           { label: "Resolve now", data: QUICK_ACTION },
           { label: "Wait for opponent", data: ACTION });
       }
-      return original.call(this, card, items);
+      restoreViewerMenu();
+      const result = original.call(this, card, items);
+      fitViewerMenu(card);
+      return result;
+    });
+    wrap("removeCardMenu", original => function() {
+      restoreViewerMenu();
+      return original.apply(this, arguments);
     });
     wrap("cardMenuClicked", original => function(card, action, event) {
       if (action !== ACTION && action !== QUICK_ACTION) return original.apply(this, arguments);

@@ -440,6 +440,60 @@ test("feature adds a native card-menu item beside Declare and preserves ordinary
   feature.tick(); assert.equal(h.page.showMenu, wrapped);
 });
 
+test("native viewer menus scroll above the card, moving below only when there is no usable room", () => {
+  const h = harness(), classes = new Set(), attributes = new Map(), properties = new Map(), killed = [], clicks = [];
+  const body = { isConnected: true, appendChild(node) { node.parentNode = this; } };
+  const nativeParent = { isConnected: true, appendChild(node) { node.parentNode = this; } };
+  const menuContent = {};
+  const menu = { isConnected: false, parentNode: nativeParent, offsetWidth: 60,
+    classList: { add: value => classes.add(value), remove: value => classes.delete(value) },
+    getAttribute: key => attributes.get(key) ?? null,
+    setAttribute(key, value) { attributes.set(key, value); }, removeAttribute(key) { attributes.delete(key); },
+    style: { top: "-150px", left: "600px", setProperty(key, value) { properties.set(key, value); } },
+    querySelector: selector => selector === "#card_menu_content" ? menuContent : null,
+    getBoundingClientRect: () => ({ left: 900, top: -200, width: 90, height: 450, bottom: 250 }) };
+  let cardTop = 160;
+  const face = { getBoundingClientRect: () => ({ left: 900, right: 990, top: cardTop, bottom: cardTop + 132, width: 90, height: 132 }) };
+  const cardNode = { querySelector: () => face };
+  h.source[0] = cardNode;
+  const viewer = { contains: node => node === cardNode };
+  h.page.innerWidth = 1024; h.page.innerHeight = 600;
+  h.page.TweenMax = { killTweensOf: node => killed.push(node) };
+  h.page.DBEnhancerCardAutomation = { create: () => h.runtime };
+  h.page.showMenu = () => { menu.isConnected = true; menu.parentNode = nativeParent; h.page.menu_card = h.source; return "native"; };
+  h.page.removeCardMenu = () => { menu.isConnected = false; };
+  h.page.cardMenuClicked = (_card, action) => clicks.push(action);
+  const feature = createFeature({ window: h.page, getSettings: () => h.settings, document: {
+    body, getElementById: id => id === "card_menu" ? menu : null,
+    querySelector: selector => selector === "#view > .content" ? viewer : null, addEventListener() {} } });
+  feature.tick();
+  assert.equal(h.page.showMenu(h.source, [{ label: "Declare", data: "Declare" }]), "native");
+  assert.equal(classes.has("dbx-native-card-menu"), true);
+  assert.equal(menu.parentNode, nativeParent, "keep the native menu in its original game container");
+  assert.equal(properties.get("width"), undefined, "preserve the native width and appearance");
+  assert.equal(properties.get("max-height"), (142 / 1.5) + "px", "scroll within the original space above the card");
+  assert.equal(properties.get("left"), "600px", "stay in the selected card's column");
+  const screenTop = -200 + (Number.parseFloat(properties.get("top")) - (-150)) * 1.5;
+  assert.equal(screenTop, 12, "keep the visible menu above the card without extending off-screen");
+  assert.deepEqual(killed, [menu, menuContent], "native compression animation cannot overwrite layout");
+  cardTop = 4;
+  h.page.showMenu(h.source, [{ label: "Declare", data: "Declare" }]);
+  assert.equal(properties.get("max-height"), (446 / 1.5) + "px");
+  const belowTop = -200 + (Number.parseFloat(properties.get("top")) - (-150)) * 1.5;
+  assert.equal(belowTop, 142, "move below only when above cannot fit a readable row");
+  h.page.cardMenuClicked(h.source, "Banish", {}); assert.deepEqual(clicks, ["Banish"]);
+  h.page.removeCardMenu();
+  assert.equal(classes.has("dbx-native-card-menu"), false);
+  assert.equal(menu.parentNode, nativeParent);
+  assert.equal(menu.isConnected, false);
+  const css = fs.readFileSync(require.resolve("../content.css"), "utf8");
+  assert.match(css, /#card_menu\.dbx-native-card-menu[\s\S]*overflow-y: auto !important/);
+  assert.match(css, /#card_menu\.dbx-native-card-menu[\s\S]*transform: none !important/);
+  assert.match(css, /#card_menu\.dbx-native-card-menu[\s\S]*scrollbar-width: none !important/);
+  assert.match(css, /#card_menu\.dbx-native-card-menu::-webkit-scrollbar \{ display: none !important/);
+  assert.doesNotMatch(css, /dbx-viewer-card-menu/);
+});
+
 test("Draw Phase keeps the menu discoverable and explains why activation is blocked", () => {
   const h = harness();
   h.page.currentPhase = "DP";
@@ -472,7 +526,7 @@ test("Solo and disabled-list discovery explains scope without enabling the list 
   assert.equal(h.runtime.prepare(h.source), true);
 });
 
-test("native automation declares immediately and allows position changes while waiting for approval", () => {
+test("native summon automation requires a position and allows changes while waiting for approval", () => {
   const h = harness();
   const nodes = [];
   let shadow;
@@ -503,7 +557,8 @@ test("native automation declares immediately and allows position changes while w
   const get = text => nodes.find(node => node.tag === "button" && node.textContent === text);
   assert.equal(feature.diagnostics.cardAutomation().mode, "wait");
   assert.equal(get("Activate & resolve"), undefined);
-  assert.equal(h.commands.length, 1);
+  assert.equal(h.commands.length, 0, "no activation before the player chooses a position");
+  assert.equal(feature.diagnostics.cardAutomation().position, null);
   click("Summon in DEF"); click("Summon in DEF");
   assert.equal(h.commands.length, 1);
   h.echo("Declare", { id: 1 }); feature.tick();
@@ -550,15 +605,32 @@ test("one position choice in wait mode arms a fresh thumbs-up gate after paying 
   assert.equal(h.commands.at(-1).play, "Stop viewing");
 });
 
-test("quick automatic activation pays its cost and starts resolution without an opponent signal", () => {
-  const h = harness();
-  assert.equal(h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" }), true);
+test("quick summon requires ATK/DEF selection, then pays cost and summons in the selected position without an opponent signal", () => {
+  for (const position of ["ATK", "DEF"]) {
+    const h = harness();
+    assert.equal(h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" }), true);
+    assert.equal(h.commands.length, 0); assert.equal(h.runtime.snapshot().state, "choose");
+    assert.equal(h.runtime.snapshot().position, null);
+    h.runtime.release(); h.runtime.tick(); assert.equal(h.commands.length, 0);
+    h.runtime.begin(position);
+    assert.equal(h.commands.at(-1).play, "Declare");
+    h.echo("Declare", { id: 1 }); h.runtime.tick(); assert.equal(h.commands.at(-1).play, "Banish");
+    h.echo("Banish", { id: 1 }); h.runtime.tick();
+    assert.equal(h.commands.at(-1).play, "Stop viewing");
+    assert.equal(h.runtime.snapshot().costPaid, true);
+    assert.equal(h.runtime.snapshot().mode, "resolve");
+    h.echo("Stop viewing"); h.runtime.tick();
+    h.echo("View deck", { deck: h.self.main_arr.map(card => Object.fromEntries(["name", "serial_number", "card_type"].map(key => [key, card.data("cardfront").data(key)]))) }); h.runtime.tick();
+    assert.equal(h.commands.at(-1).play, "SS " + position);
+    assert.equal(h.commands.at(-1).card, h.target.data("id"));
+  }
+});
+
+test("a rule with a single legal summon position may still auto-start", () => {
+  const h = harness(); h.settings.automationLists[0].rules[0].resolution[0].positions = ["DEF"];
+  h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" });
   assert.equal(h.commands.at(-1).play, "Declare");
-  h.echo("Declare", { id: 1 }); h.runtime.tick(); assert.equal(h.commands.at(-1).play, "Banish");
-  h.echo("Banish", { id: 1 }); h.runtime.tick();
-  assert.equal(h.commands.at(-1).play, "Stop viewing");
-  assert.equal(h.runtime.snapshot().costPaid, true);
-  assert.equal(h.runtime.snapshot().mode, "resolve");
+  assert.equal(h.runtime.snapshot().position, "DEF");
 });
 
 test("opponent Thinking during activation suspends an immediate flow after the cost", () => {

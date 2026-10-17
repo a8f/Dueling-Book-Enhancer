@@ -163,8 +163,11 @@
           if (!valid()) { finish("Duel changed. Open the card menu again."); return; }
           return new Promise(resolve => {
             candidate.release = resolve;
-            setState("choose", "Choose ATK or DEF to activate and resolve this effect.");
-            if (autoStart) begin(run.rule.resolution[0].positions[0]);
+            setState("choose", run.mode === "wait" ? "Choose ATK or DEF to activate. Resolution will wait for the opponent." :
+              "Choose ATK or DEF to activate and resolve this effect.");
+            // Multiple legal positions are a player decision, even in quick
+            // mode. Only an unambiguous single-position rule can auto-start.
+            if (autoStart && run.rule.resolution[0].positions.length === 1) begin(run.rule.resolution[0].positions[0]);
           });
         }).catch(() => { if (run === candidate) finish("Could not coordinate duel tabs. Continue manually."); });
       return true;

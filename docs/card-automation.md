@@ -57,8 +57,9 @@ by effects, chains, negation and replacement effects are adjudicated manually.
 
 The native card menu offers **Resolve now** to declare and begin resolution
 immediately, or **Wait for opponent** to declare and wait for a fresh opponent
-thumbs-up. Both are single-click actions. The panel starts with the first available
-effect or first listed summon position; effect/position buttons remain available
+thumbs-up. Choice effects start with the first available effect. Summon effects
+with multiple legal positions require an ATK/DEF choice before activation in
+either mode; a single-position rule can start immediately. Effect/position buttons remain available
 while waiting. Changing a choice invalidates pending approval and automatically
 re-arms the wait. **Resolve now** remains available for manual release. Summon
 timing stays manual without a confirmation checkbox. Effect choice locks when

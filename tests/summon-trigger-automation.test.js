@@ -302,6 +302,11 @@ function selectionUI(h, native = true) {
     nodes.push(node); return node;
   }
   const content = element("content");
+  const view = element("view"); view.appendChild(content);
+  view.style.getPropertyValue = key => view.style[key] || "";
+  view.style.getPropertyPriority = () => "";
+  view.style.setProperty = (key, value) => { view.style[key] = value; };
+  view.style.removeProperty = key => { delete view.style[key]; };
   for (const card of [h.source, h.ally, h.ownSpell, h.hidden, ...h.self.main_arr]) {
     card[0] = element("card");
     const face = element("face"); face.className = "content";
@@ -309,6 +314,7 @@ function selectionUI(h, native = true) {
     face.appendChild(element("art")); card[0].appendChild(face);
   }
   const document = { createElement: element, documentElement: element("html"), activeElement: null,
+    getElementById: id => id === "view" ? view : null,
     querySelector: selector => native && selector === "#view > .content" ? content : null,
     addEventListener(type, callback, capture) { (listeners[type] ||= []).push({ callback, capture }); } };
   h.page.DBEnhancerCardAutomation = { create(options) { const runtime = create(options); h.setRuntime(runtime); return runtime; } };
@@ -321,7 +327,7 @@ function selectionUI(h, native = true) {
   };
   const feature = createFeature({ window: h.page, document, getSettings: () => h.settings });
   feature.initialize();
-  return { feature, nodes, content, rendered, clickCard(card, button = 0) {
+  return { feature, nodes, content, view, rendered, clickCard(card, button = 0) {
     let stopped = false;
     for (const listener of listeners.click || []) listener.callback({ target: card[0].children[0], button,
       preventDefault() {}, stopImmediatePropagation() { stopped = true; } });
@@ -436,6 +442,9 @@ test("default native search resolves on one left-click without a separate confir
   assert.equal(host.hidden, true);
   ui.clickCard(h.target);
   assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "To hand", card: 3 });
+  assert.equal(ui.view.style.visibility, "hidden", "Deck window hides immediately, before the move acknowledgment");
+  assert.equal(h.page.viewing, "Deck", "native protocol state remains valid while the move is in flight");
+  assert.equal(h.commands.some(command => command.play === "Stop viewing"), false, "closing cannot race the move");
   assert.equal(h.runtime.snapshot().state, "adding");
   assert.equal(host.hidden, true, "adding progress must not reopen the panel");
   ui.clickCard(h.target); assert.equal(h.commands.filter(command => command.play === "To hand").length, 1);
@@ -447,6 +456,7 @@ test("default native search resolves on one left-click without a separate confir
   h.ack(); h.runtime.tick(); assert.equal(host.hidden, true);
   h.echo("Shuffle deck"); h.runtime.tick();
   assert.equal(h.runtime.snapshot().state, "completed"); assert.equal(host.hidden, true);
+  assert.equal(ui.view.style.visibility, undefined, "native visibility is restored for subsequent searches");
 });
 
 test("confirmation setting keeps the native search panel near the centre and requires confirmation", () => {
@@ -462,6 +472,7 @@ test("confirmation setting keeps the native search panel near the centre and req
   h.advance(15001); h.runtime.tick();
   assert.equal(h.runtime.snapshot().state, "stopped");
   assert.equal(host.hidden, false, "an uncertain or failed movement must still surface its error");
+  assert.equal(ui.view.style.visibility, undefined, "failure restores the Deck window for manual recovery");
 });
 
 test("default multi-card selection auto-finishes at the maximum and still supports finishing with fewer", () => {

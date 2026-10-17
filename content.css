@@ -103,3 +103,15 @@ html.dbx-hide-greenlines #greenlines {
 }
 
 #dbx-connection-health[hidden] { display: none; }
+
+/* Keep native card menus readable when there is too little room above a card. */
+#card_menu.dbx-native-card-menu {
+  transform: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+}
+#card_menu.dbx-native-card-menu::-webkit-scrollbar { display: none !important; }
+#card_menu.dbx-native-card-menu #card_menu_content {
+  top: 0 !important;
+}
