@@ -10,8 +10,7 @@
   const colorGroups = document.getElementById("color-groups");
   const saveStatus = document.getElementById("save-status");
   const settingsClient = window.DBEnhancerSettingsClient;
-  let savedSettings = core.createDefaultSettings();
-  let resetRequested = false;
+  let autosave;
   let currentSettings = core.createDefaultSettings();
   let draggedRow = null;
   let draggedRoom = null;
@@ -230,7 +229,7 @@
         const enabled = visibility.dataset.enabled !== "true";
         setVisibilityButton(visibility, enabled, pool.label);
         currentSettings.cardPools.enabled[pool.id] = enabled;
-        showSavedStatus("Card Pools changed—save to apply");
+        saveChanges();
       });
 
       const name = document.createElement("strong");
@@ -268,7 +267,7 @@
           currentSettings.cardPools.order = currentSettings.cardPools.order.filter(id => id !== pool.id);
           delete currentSettings.cardPools.enabled[pool.id];
           renderCardPools();
-          showSavedStatus("Deleted—save to apply");
+          saveChanges();
         });
         actions.appendChild(remove);
       }
@@ -529,7 +528,7 @@
               row._dbxImageData = await resizeImageFile(file, definition.imageWidth, definition.imageHeight);
               row._dbxImageName = file.name.slice(0, 100);
               imageName.textContent = row._dbxImageName;
-              showSavedStatus("Image ready—save to apply");
+              saveChanges();
             } catch (error) {
               showSavedStatus(error.message);
             } finally {
@@ -714,7 +713,7 @@
     });
     currentSettings.customSort.groups = groups;
     buildSortCategories(currentSettings);
-    showSavedStatus("Custom Sort changed—save to apply");
+    saveChanges();
   }
 
   function moveGroup(card, direction) {
@@ -1025,12 +1024,14 @@
     return core.sanitizeSettings(candidate);
   }
 
-  function showSavedStatus(message) {
+  function showSavedStatus(message, state = "error") {
     saveStatus.textContent = message;
-    window.clearTimeout(showSavedStatus.timeout);
-    showSavedStatus.timeout = window.setTimeout(function clearStatus() {
-      saveStatus.textContent = "";
-    }, 2400);
+    saveStatus.dataset.state = state;
+    document.getElementById("retry-save").hidden = state !== "error";
+  }
+
+  function saveChanges() {
+    if (autosave) return autosave.save();
   }
 
   function applyAppearance() {
@@ -1085,10 +1086,7 @@
         }
       });
       renderCardPools();
-      showSavedStatus(
-        "Imported " + imported.length + " banlist" + (imported.length === 1 ? "" : "s") +
-          "—save to apply"
-      );
+      saveChanges();
     } catch (error) {
       showSavedStatus("Import failed: " + error.message);
     } finally {
@@ -1099,26 +1097,36 @@
   document.getElementById("mode-toggle").addEventListener("click", function toggleMode() {
     currentSettings.appearance.mode = currentSettings.appearance.mode === "dark" ? "light" : "dark";
     applyAppearance();
-    showSavedStatus("Appearance changed—save to apply");
+    saveChanges();
   });
 
   document.querySelectorAll("[data-theme-choice]").forEach(function installTheme(button) {
     button.addEventListener("click", function chooseTheme() {
       currentSettings.appearance.theme = button.dataset.themeChoice;
       applyAppearance();
-      showSavedStatus("Appearance changed—save to apply");
+      saveChanges();
     });
   });
 
-  let saving = true;
-  const saveButton = form.querySelector('button[type="submit"]');
-  saveButton.disabled = true;
+  // Keep controls unavailable until the real settings have loaded.
+  document.getElementById("settings-controls").disabled = true;
+  document.querySelectorAll(".appearance-controls button").forEach(button => { button.disabled = true; });
   settingsClient.execute({ type: "get-settings" }).then(settings => {
-    savedSettings = core.copy(settings);
     renderSettings(settings);
-    saving = false;
-    saveButton.disabled = false;
-  }).catch(error => showSavedStatus("Load failed: " + error.message));
+    autosave = window.DBEnhancerAutosave.create({
+      baseline: core.copy(settings),
+      read() {
+        if (!form.checkValidity()) throw new Error("Correct the highlighted fields to save your changes.");
+        return readSettingsFromForm();
+      },
+      write: command => settingsClient.execute(command),
+      store: window.DBEnhancerSettingsStore,
+      status: showSavedStatus
+    });
+    document.getElementById("settings-controls").disabled = false;
+    document.querySelectorAll(".appearance-controls button").forEach(button => { button.disabled = false; });
+    showSavedStatus("All changes saved", "saved");
+  }).catch(error => showSavedStatus("Load failed: " + error.message, "load-error"));
 
   function renderShuffleTiming() {
     const slider = document.getElementById("hand-shuffle-aggressiveness");
@@ -1131,54 +1139,26 @@
 
   form.addEventListener("submit", function saveSettings(event) {
     event.preventDefault();
-    let settings;
-    try {
-      settings = readSettingsFromForm();
-    } catch (error) {
-      showSavedStatus(error.message);
-      form.reportValidity();
-      return;
-    }
-    if (saving) return;
-    const changes = window.DBEnhancerSettingsStore.changes(savedSettings, settings);
-    // Reset is an explicit request to replace every editable preference,
-    // including fields that happened to match the page's original snapshot.
-    const updates = resetRequested
-      ? Object.keys(settings).filter(key => !["deckCardpools", "schemaVersion"].includes(key)).map(key => ({ path: [key], value: settings[key] }))
-      : changes;
-    saving = true;
-    saveButton.disabled = true;
-    settingsClient.execute({ type: "update-preferences", changes: updates, resetDeckMemory: resetRequested }).then(committed => {
-      // A user can keep editing while storage is pending. Rebase those edits
-      // onto the committed preferences instead of replacing them on response.
-      let pending;
-      try { pending = window.DBEnhancerSettingsStore.changes(settings, readSettingsFromForm()); }
-      catch (_) {
-        // Keep invalid in-progress text in the form. The submitted snapshot is
-        // still a valid baseline for the next incremental save.
-        savedSettings = core.copy(settings);
-        resetRequested = false;
-        showSavedStatus("Saved; newer edits are unsaved");
-        return;
-      }
-      savedSettings = core.copy(committed);
-      resetRequested = false;
-      renderSettings(core.sanitizeSettings(window.DBEnhancerSettingsStore.applyChanges(committed, pending)));
-      showSavedStatus(pending.length ? "Saved; newer edits are unsaved" : "Saved");
-    }).catch(error => showSavedStatus("Save failed: " + error.message)).finally(() => {
-      saving = false;
-      saveButton.disabled = false;
-    });
+    saveChanges();
+  });
+  ["input", "change"].forEach(type => form.addEventListener(type, event => {
+    if (event.target.type !== "file") saveChanges();
+  }));
+  form.addEventListener("click", event => {
+    if (event.target.closest(".visibility-button, .card-move-button, .move-button, .room-move-button, .type-chip-controls button, .color-reset, .delete-button")) saveChanges();
+  });
+  form.addEventListener("dragend", saveChanges);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveChanges();
   });
 
   document.getElementById("reset-settings").addEventListener("click", function reset() {
-    if (saving) return;
+    if (!autosave || autosave.saving) return;
     const confirmed = window.confirm(
       "Reset rooms, host defaults, automation, Card Pools, Custom Sort, colors, and appearance?"
     );
     if (!confirmed) return;
-    resetRequested = true;
     renderSettings(core.createDefaultSettings());
-    showSavedStatus("Defaults restored—save to apply");
+    autosave.save(true);
   });
 })();

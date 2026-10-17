@@ -13,7 +13,7 @@ function harness(environment = "worker") {
     id: "extension-test", getURL: path => "chrome-extension://extension-test/" + path,
     onMessage: { addListener: callback => { receive = callback; } }
   };
-  const chrome = { runtime, storage: {
+  const chrome = { runtime, action: { onClicked: { addListener() {} } }, storage: {
     local: {
       get(_key, callback) { setImmediate(() => callback({ settings: structuredClone(stored) })); },
       set(value, callback) {
@@ -69,6 +69,14 @@ test("worker serializes commands from multiple tabs and merges stale options cha
   assert.equal(stored.deckCardpools[42].value, "tcg");
   assert.equal(stored.deckCardpools[43].id, "dbx-custom-test");
   assert.ok(stored.customBanlists.length > 0, "worker loads bundled defaults without window");
+});
+
+test("settings section anchors still authorize loading and saving preferences", async () => {
+  const h = harness();
+  const options = h.client("chrome-extension://extension-test/options.html#colors-heading").api;
+  await options.execute({ type: "get-settings" });
+  await options.execute({ type: "update-preferences", changes: [{ path: ["showGridLines"], value: false }] });
+  assert.equal(h.read().showGridLines, false);
 });
 
 test("Firefox event-page manifest starts the settings writer without importScripts", async () => {

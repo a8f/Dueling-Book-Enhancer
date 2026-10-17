@@ -24,9 +24,33 @@ const store = DBEnhancerSettingsStore.create({
   })
 });
 
+// Open settings directly from the toolbar. Find our own extension context so
+// section anchors and settings tabs in other windows are reused as well.
+let openingSettings = null;
+async function openSettings() {
+  const url = chrome.runtime.getURL("options.html");
+  if (chrome.runtime.getContexts) {
+    const contexts = await chrome.runtime.getContexts({ contextTypes: ["TAB"] });
+    const existing = contexts.find(context => context.documentUrl?.split("#")[0] === url && context.tabId >= 0);
+    if (existing) {
+      await chrome.tabs.update(existing.tabId, { active: true });
+      await chrome.windows.update(existing.windowId, { focused: true });
+      return;
+    }
+  }
+  // Firefox and first-time opening use the browser's options-page handling.
+  await chrome.runtime.openOptionsPage();
+}
+chrome.action.onClicked.addListener(() => {
+  if (openingSettings) return;
+  openingSettings = openSettings().catch(error => console.error("Could not open settings:", error)).finally(() => {
+    openingSettings = null;
+  });
+});
+
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message || message.channel !== "dbx-settings" || sender.id !== chrome.runtime.id) return;
-  const optionsPage = sender.url === chrome.runtime.getURL("options.html");
+  const optionsPage = sender.url?.split("#")[0] === chrome.runtime.getURL("options.html");
   const site = /^https:\/\/(www\.)?duelingbook\.com\//.test(sender.url || "");
   if (!optionsPage && !site) return;
   store.execute(message.command || {}, optionsPage).then(

@@ -80,10 +80,13 @@ only user edits, including nested changes and removals. The worker merges those
 edits into current settings, preserving newer host fields, RPS modes and deck
 mappings when the user did not edit them. An explicit edit to the same field
 wins in queue order. RPS mode's two stored booleans are updated together.
-Edits made while a save is pending are rebased onto the committed result.
+`options-autosave.js` serializes automatic saves and coalesces edits made while
+a write is pending. The form keeps its submitted snapshot as the baseline;
+responses never rebuild controls or interrupt typing. Invalid input and storage
+failures leave edits in the form, with a persistent status and a retry action.
 
 Reset explicitly replaces editable preferences and clears deck memory when
-the user saves. Ordinary options saves cannot replace deck mappings. Imported
+the user confirms the reset. Ordinary options saves cannot replace deck mappings. Imported
 banlist arrays and ordering arrays are treated as complete edited values.
 
 ## Validation

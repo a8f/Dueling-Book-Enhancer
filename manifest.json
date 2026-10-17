@@ -8,8 +8,7 @@
     "storage"
   ],
   "action": {
-    "default_title": "Dueling Book Enhancer",
-    "default_popup": "popup.html"
+    "default_title": "Open Dueling Book Enhancer settings"
   },
   "options_ui": {
     "page": "options.html",

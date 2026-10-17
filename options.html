@@ -26,6 +26,7 @@
 
     <main>
       <form id="settings-form">
+        <fieldset id="settings-controls" disabled>
         <nav class="toc settings-section" aria-label="Settings sections">
           <a href="#rooms-heading">Visible Rooms</a>
           <a href="#host-heading">Host Defaults</a>
@@ -142,8 +143,9 @@
 
         <div class="save-bar">
           <button id="reset-settings" class="secondary-button" type="button">Reset everything</button>
-          <div class="save-actions"><span id="save-status" role="status" aria-live="polite"></span><button class="primary-button" type="submit">Save settings</button></div>
+          <div class="save-actions"><span class="autosave-hint">Changes save automatically</span><span id="save-status" role="status" aria-live="polite">Loading settings...</span><button id="retry-save" class="primary-button" type="submit" hidden>Retry save</button></div>
         </div>
+        </fieldset>
       </form>
     </main>
 
@@ -151,6 +153,7 @@
     <script src="enhancer-core.js"></script>
     <script src="settings-store.js"></script>
     <script src="settings-client.js"></script>
+    <script src="options-autosave.js"></script>
     <script src="options.js"></script>
   </body>
 </html>
