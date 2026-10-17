@@ -22,6 +22,7 @@ Version 1.1.6 is a local Chrome extension for customizing Dueling Book without r
 - Reveal or mask either saved Host password with a state-matched eye icon.
 - Choose a saved RPS mode: Manual, Random on tie, or Automatic.
 - Click Automatic to pick randomly now, repeat after ties, and start future duels automatically. Random on tie waits for your first manual card choice.
+- Skip the opening intro automatically (enabled by default); turn it off under Automation → Intro in settings.
 - Disable all RPS controls and automatic picks under Automation in settings.
 - Opt in to automatically choosing First whenever you can select the turn order, including after siding, under Automation → Turn order.
 - Toggle Automatically go first below the turn-selection cards; it saves the same preference and enabling it chooses First immediately.
