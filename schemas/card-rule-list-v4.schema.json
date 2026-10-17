@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a8f.github.io/Dueling-Book-Enhancer/schemas/card-rule-list-v4.schema.json",
+  "title": "Card rule list v4 (spec 2)",
+  "description": "Portable card entries with metadata and spec-1 actions. enabled is accepted for local storage only; import forces false and export omits it. Rule IDs and identity/name consistency require semantic validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 4
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "\\S"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,4}$"
+    },
+    "formats": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "ar",
+          "au",
+          "er",
+          "eu",
+          "gr",
+          "gu",
+          "yu",
+          "cu",
+          "su",
+          "ru",
+          "uu",
+          "tu",
+          "so"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 13,
+      "uniqueItems": true
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Local preference. Never included in shared exports."
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+          },
+          "card": {
+            "$ref": "card-action-v1.schema.json#/$defs/card"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 160,
+            "pattern": "\\S"
+          },
+          "action": {
+            "$ref": "card-action-v1.schema.json"
+          }
+        },
+        "required": [
+          "id",
+          "card",
+          "label",
+          "action"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 100
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "version",
+    "formats",
+    "rules"
+  ]
+}

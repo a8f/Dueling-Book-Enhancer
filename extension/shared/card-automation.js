@@ -30,9 +30,9 @@
       (!page.websocket || page.websocket.readyState === 1);
     const idle = () => Array.isArray(page.actionsQueue) && page.actionsQueue.length === 0 && page.stopQueue === false;
     const zone = player => [1, 2, 3, 4, 5].find(index => !player["m" + index]);
-    const hasOverflowResolution = () => run?.rule.resolution[0].onNoMonsterZone === "destroy-to-graveyard";
+    const hasOverflowResolution = () => run?.rule.action.resolution[0].onNoMonsterZone === "destroy-to-graveyard";
     function prerequisiteProblem(rule) {
-      for (const selector of rule.requires.absentFaceUpCards || []) {
+      for (const selector of rule.action.requires.absentFaceUpCards || []) {
         for (const player of [page.player1, page.player2]) {
           const cards = [player?.fieldSpell, ...[1, 2, 3, 4, 5].flatMap(index => [player?.["m" + index], player?.["s" + index]])];
           if (cards.some(card => card && !card.data("face_down") && matches(selector, card))) {
@@ -67,8 +67,8 @@
       if (problem) return problem;
       const prerequisite = prerequisiteProblem(rule);
       if (prerequisite) return prerequisite;
-      if (rule.requires.ownTurn && page.turn_player !== local()) return "This rule requires your own turn.";
-      if (!rule.requires.phases.includes(page.currentPhase)) return "This rule requires phase " + rule.requires.phases.join(" or ") + ". Change phase, then open automation again.";
+      if (rule.action.requires.ownTurn && page.turn_player !== local()) return "This rule requires your own turn.";
+      if (!rule.action.requires.phases.includes(page.currentPhase)) return "This rule requires phase " + rule.action.requires.phases.join(" or ") + ". Change phase, then open automation again.";
       if (!local().main_arr.length) return "Your Deck is empty. The rule requires a matching card in your Deck.";
       if (!zone(local())) return "Free a monster zone before activating this effect.";
       if (!idle()) return "Wait for Duelingbook's current actions to finish, then open automation again.";
@@ -82,11 +82,11 @@
       const rule = rules[0];
       return Boolean(live() && player && rules.length === 1 && !identityProblem(rule, card) && !prerequisiteProblem(rule) &&
         !card.data("face_down") && player.grave_arr.includes(card) && card.data("owner") === player &&
-        player.main_arr.length && zone(player) && (!rule.requires.ownTurn || page.turn_player === player) && rule.requires.phases.includes(page.currentPhase));
+        player.main_arr.length && zone(player) && (!rule.action.requires.ownTurn || page.turn_player === player) && rule.action.requires.phases.includes(page.currentPhase));
     }
     function identityProblem(rule, source) {
       if (name(source) !== rule.card.name) return "The source card identifier and name do not match the rule. Correct the rules list.";
-      for (const selector of [rule.card, rule.resolution[0].card, ...(rule.requires.absentFaceUpCards || [])]) {
+      for (const selector of [rule.card, rule.action.resolution[0].card, ...(rule.action.requires.absentFaceUpCards || [])]) {
         const lookup = selector.passcode !== undefined ? page.getCardByPasscode : page.getCard;
         const known = typeof lookup === "function" ? lookup.call(page, selector.passcode ?? selector.id) : null;
         if (known && known.name && known.name !== selector.name) return "Card " + (selector.passcode ?? selector.id) + " belongs to " + known.name + ". Correct the rules list.";
@@ -96,7 +96,7 @@
     function snapshot() {
       if (!run) return null;
       return { state: run.state, message: run.message, position: run.position, costPaid: run.costPaid,
-        cardName: run.rule.card.name, effectLabel: run.rule.label, positions: run.rule.resolution[0].positions,
+        cardName: run.rule.card.name, effectLabel: run.rule.label, positions: run.rule.action.resolution[0].positions,
         mode: run.mode,
         finished: run.finished, list: run.list.name, version: run.list.version, journal: run.journal.slice() };
     }
@@ -167,13 +167,13 @@
               "Choose ATK or DEF to activate and resolve this effect.");
             // Multiple legal positions are a player decision, even in quick
             // mode. Only an unambiguous single-position rule can auto-start.
-            if (autoStart && run.rule.resolution[0].positions.length === 1) begin(run.rule.resolution[0].positions[0]);
+            if (autoStart && run.rule.action.resolution[0].positions.length === 1) begin(run.rule.action.resolution[0].positions[0]);
           });
         }).catch(() => { if (run === candidate) finish("Could not coordinate duel tabs. Continue manually."); });
       return true;
     }
     function choose(position) {
-      if (!valid() || !["choose", "declaring", "banishing", "ready", "waiting", "approved", "suspended"].includes(run.state) || !run.rule.resolution[0].positions.includes(position) || run.position === position) return;
+      if (!valid() || !["choose", "declaring", "banishing", "ready", "waiting", "approved", "suspended"].includes(run.state) || !run.rule.action.resolution[0].positions.includes(position) || run.position === position) return;
       run.position = position;
       if (["waiting", "approved"].includes(run.state)) {
         setState("ready", "Position changed. Waiting for a fresh opponent thumbs-up.");
@@ -195,7 +195,7 @@
     }
     function begin(position) {
       if (!valid() || run.state !== "choose" || !eligible(run.source) || !idle() ||
-          !run.rule.resolution[0].positions.includes(position)) return;
+          !run.rule.action.resolution[0].positions.includes(position)) return;
       run.position = position;
       run.flow = run.mode;
       activate();
@@ -220,7 +220,7 @@
     function openDeck() {
       if (!run.player.main_arr.length || (!zone(run.player) && !hasOverflowResolution())) { finish("No deck cards or free monster zones. Continue manually."); return; }
       run.deckInstances = run.player.main_arr.slice();
-      expect("view-deck", "View deck", null, "Searching your Deck for " + run.rule.resolution[0].card.name + "…");
+      expect("view-deck", "View deck", null, "Searching your Deck for " + run.rule.action.resolution[0].card.name + "…");
       send("View deck", id(run.player.main_arr[0]));
     }
     function sameExpected(event) {
@@ -313,7 +313,7 @@
               run.deckInstances.some((card, index) => card !== run.player.main_arr[index])) {
             finish("Deck information changed or is unavailable. Finish the search manually."); return;
           }
-          const selector = run.rule.resolution[0].card;
+          const selector = run.rule.action.resolution[0].card;
           const index = run.deckData.findIndex(card => matchesData(selector, card) && card.card_type === "Monster");
           if (index < 0) { finish("No matching card found. Close the native Deck view and finish manually."); return; }
           if (run.deckData[index].name !== selector.name) {
@@ -338,15 +338,15 @@
           break;
         }
         case "summoning":
-          if (run.player.main_arr.includes(run.target) || run.player[run.summonZone] !== run.target || !matches(run.rule.resolution[0].card, run.target) ||
+          if (run.player.main_arr.includes(run.target) || run.player[run.summonZone] !== run.target || !matches(run.rule.action.resolution[0].card, run.target) ||
               !run.target.data("in" + run.position) || run.target.data("face_down")) return;
-          run.journal.push("Special Summoned " + run.rule.resolution[0].card.name + " in " + run.position);
+          run.journal.push("Special Summoned " + run.rule.action.resolution[0].card.name + " in " + run.position);
           stopViewing("close-deck");
           break;
         case "destroying":
           if (run.player.main_arr.includes(run.target) || !run.player.grave_arr.includes(run.target) ||
-              !matches(run.rule.resolution[0].card, run.target) || run.target.data("face_down")) return;
-          run.journal.push("Destroyed " + run.rule.resolution[0].card.name + " from Deck and sent it to the Graveyard (no monster zone)");
+              !matches(run.rule.action.resolution[0].card, run.target) || run.target.data("face_down")) return;
+          run.journal.push("Destroyed " + run.rule.action.resolution[0].card.name + " from Deck and sent it to the Graveyard (no monster zone)");
           stopViewing("close-deck");
           break;
         case "close-deck":
@@ -397,7 +397,7 @@
     const field = player => [1, 2, 3, 4, 5].map(i => player?.["m" + i]).filter(Boolean);
     const allField = () => [page.player1, page.player2].flatMap(player => [player?.fieldSpell,
       ...[1, 2, 3, 4, 5].flatMap(i => [player?.["s" + i], player?.["m" + i]])]).filter(Boolean);
-    const effect = () => run.rule.resolution[0];
+    const effect = () => run.rule.action.resolution[0];
     const monster = data => data.card_type === "Monster" && typeof data.name === "string" &&
       (effect().monsterCards ? effect().monsterCards.some(selector => matchesData(selector, data) && selector.name === data.name) :
         effect().monsterNamePrefixes.some(prefix => data.name.toLowerCase().startsWith(prefix.toLowerCase())));
@@ -417,19 +417,19 @@
     }
     function available(card) {
       return Boolean(live() && local() && card && !card.data("face_down") && field(local()).includes(card) &&
-        (getSettings().automationLists || []).some(list => list.rules.some(rule => rule.requires.sourceZone === "monster" && matches(rule.card, card))));
+        (getSettings().automationLists || []).some(list => list.rules.some(rule => rule.action.requires.sourceZone === "monster" && matches(rule.card, card))));
     }
     function problem(card) {
       if (!available(card)) return "Select a face-up monster you control in a live manual duel.";
       const matching = lists(card).flatMap(list => list.rules.filter(rule => matches(rule.card, card)));
       if (matching.length !== 1) return matching.length ? "Multiple enabled rules overlap for this card." : "Enable this rules list and the current duel format in Automation settings.";
-      if (matching[0].requires.sourceZone !== "monster" || name(card) !== matching[0].card.name) return "The card identity or source zone does not match the rule.";
-      for (const selector of [matching[0].card, ...(matching[0].resolution[0].monsterCards || []), ...matching[0].resolution[0].searchAbsentFaceUpCards]) {
+      if (matching[0].action.requires.sourceZone !== "monster" || name(card) !== matching[0].card.name) return "The card identity or source zone does not match the rule.";
+      for (const selector of [matching[0].card, ...(matching[0].action.resolution[0].monsterCards || []), ...matching[0].action.resolution[0].searchAbsentFaceUpCards]) {
         const lookup = selector.passcode !== undefined ? page.getCardByPasscode : page.getCard;
         const known = typeof lookup === "function" ? lookup.call(page, selector.passcode ?? selector.id) : null;
         if (known?.name && known.name !== selector.name) return "A card identifier and name do not match the native catalog. Correct the rules list.";
       }
-      if (!matching[0].requires.phases.includes(page.currentPhase)) return "This phase is unsupported.";
+      if (!matching[0].action.requires.phases.includes(page.currentPhase)) return "This phase is unsupported.";
       if (!idle()) return "Wait for Duelingbook's actions to finish, then open automation again.";
       if (typeof page.exitViewing !== "function" || typeof page.viewingE !== "function" || typeof page.Send !== "function") return "Native card controls are still loading.";
       return null;

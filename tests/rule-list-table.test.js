@@ -4,12 +4,12 @@ const assert = require("node:assert/strict");
 const core = require("../extension/shared/enhancer-core.js");
 const { cardPage, create } = require("../extension/options/rule-list-table.js");
 function fixture(count = 23) {
-  return { schemaVersion: 3, id: "test.table", name: "Example list", version: "1.0.0", enabled: true,
+  return { schemaVersion: 4, id: "test.table", name: "Example list", version: "1.0.0", enabled: true,
     formats: ["au"], rules: Array.from({ length: count }, (_, i) => ({ id: "card-" + i,
       card: { passcode: String(9000001 + i).padStart(8, "0"), name: "Card " + String(i + 1).padStart(2, "0") }, label: "Effect " + (i + 1),
-      requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
+      action: { schemaVersion: 1, requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
       activation: [{ op: "banish", card: "source" }],
-      resolution: [{ op: "special-summon", from: "deck", card: { id: 90000101, name: "Result" }, positions: ["ATK", "DEF"] }] })) };
+      resolution: [{ op: "special-summon", from: "deck", card: { id: 90000101, name: "Result" }, positions: ["ATK", "DEF"] }] } })) };
 }
 function harness() {
   const nodes = [];

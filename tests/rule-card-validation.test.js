@@ -2,21 +2,21 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { create } = require("../extension/options/rule-card-validation.js");
-const list = (name = "Known card", id = 123) => ({ rules: [{ card: { id, name }, resolution: [{ card: { id: 456, name: "Result" } }] }] });
+const list = (name = "Known card", id = 123) => ({ rules: [{ card: { id, name }, action: { resolution: [{ card: { id: 456, name: "Result" } }] } }] });
 
 test("choice rules validate branch prohibitions without requiring a fixed result card", () => {
   const validator = create({ requestPermission: async () => false });
   const rules = list();
-  rules.rules[0].resolution = [{ op: "choose-search-or-destroy", searchAbsentFaceUpCards: [{ id: 789, name: "Prohibition" }] }];
+  rules.rules[0].action.resolution = [{ op: "choose-search-or-destroy", searchAbsentFaceUpCards: [{ id: 789, name: "Prohibition" }] }];
   assert.deepEqual(validator.check(rules), { checked: 0, unknown: ["DB ID 123", "DB ID 789"] });
-  rules.rules[0].resolution[0].monsterCards = [{ id: 456, name: "Example member" }];
+  rules.rules[0].action.resolution[0].monsterCards = [{ id: 456, name: "Example member" }];
   assert.deepEqual(validator.check(rules), { checked: 0, unknown: ["DB ID 123", "DB ID 456", "DB ID 789"] });
 });
 
 test("catalog validation matches padded printed passcodes in compact and full records", async () => {
   const rules = list("Destiny HERO - Malicious");
   rules.rules[0].card = { passcode: "09411399", name: "Destiny HERO - Malicious" };
-  rules.rules[0].resolution[0].card = { passcode: "09000002", name: "Result" };
+  rules.rules[0].action.resolution[0].card = { passcode: "09000002", name: "Result" };
   const validator = create({ requestPermission: async () => true, fetchImpl: async () => new Response(JSON.stringify({ cards: [
     { id: 1137, n: "Destiny HERO - Malicious", s: 9411399 },
     { id: 1234, name: "Result", serial_number: "09000002" }
@@ -29,7 +29,7 @@ test("catalog validation matches padded printed passcodes in compact and full re
 
 test("catalog validation includes historical prerequisite card identities", async () => {
   const rules = list();
-  rules.rules[0].requires = { absentFaceUpCards: [{ passcode: "09000004", name: "Example Prohibition" }] };
+  rules.rules[0].action.requires = { absentFaceUpCards: [{ passcode: "09000004", name: "Example Prohibition" }] };
   const validator = create({ requestPermission: async () => true, fetchImpl: async () => new Response(JSON.stringify([
     { id: 4, s: 9000004, n: "Actual Prohibition" }
   ])) });

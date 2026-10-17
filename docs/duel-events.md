@@ -1,5 +1,10 @@
 # Duel event features
 
+The typed registration, snapshot and callback contract is in
+[`contracts/automation.d.ts`](../contracts/automation.d.ts). See
+[automation contracts](automation-contracts.md#events-subscriptions-and-callbacks)
+for its relationship to imported card actions and the capability backlog.
+
 `extension/page/duel-events.js` exposes `window.DBEnhancerDuelEvents` in the page's MAIN world.
 Register features from a script loaded after it (add the script to the MAIN
 content scripts in `extension/manifest.json`). Registrations can happen before the site

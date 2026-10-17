@@ -1,5 +1,11 @@
 # Optional simulator extractor
 
+Outputs use [action schema 1 and list schema 4](automation-contracts.md).
+A supported per-card result exposes the spec-(1) definition as `rule.action`;
+`--write` and the Edison batch helper produce spec-(2) lists. Older list formats
+must be converted before writing. The extractor vendors both schemas and the
+validator; `node scripts/sync-automation-contracts.mjs --check` detects drift.
+
 The extractor lives in [`a8f/dbe-sim-extractor`](https://github.com/a8f/dbe-sim-extractor),
 checked out as the optional `card-rule-extractor/` submodule. Its generic implementation,
 format/source profiles and synthetic checks are independent of the extension.
@@ -78,7 +84,7 @@ Successful writes can flow through the existing
 node scripts/serve-rule-lists.mjs personal-rules
 ```
 
-The extractor's checks run separately from the extension's `node --test`:
+The extractor's checks run separately from the extension's `node scripts/test.mjs`:
 
 ```powershell
 node --test card-rule-extractor/checks/*.check.mjs

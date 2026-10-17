@@ -1,6 +1,8 @@
 # Card automation design proposal
 
-Status: design only; no runtime behavior changes.
+Status: historical proposal. The implemented, normative formats and lifecycle
+are in [automation contracts](automation-contracts.md). This proposal is not an
+accepted schema or a backlog of promised behavior.
 
 Implementation note: the current generic engine and optional external-list
 contract are documented in [card automation](card-automation.md). Card effect

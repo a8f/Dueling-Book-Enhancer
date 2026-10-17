@@ -14,6 +14,15 @@ The same commands work without npm as `node scripts/test.mjs`,
 The runner selects this repository's test files explicitly so it does not
 discover tests in independent nested checkouts.
 
+For automation contract changes, `node scripts/sync-automation-contracts.mjs --check`
+verifies the initialized extractor's vendored validator/schemas. The default suite
+checks this when that checkout is present. To independently validate the JSON
+Schemas against the runtime's synthetic mutation corpus, run
+`python scripts/check-automation-schemas.py` with Python's `jsonschema` package
+installed. This optional development check is not a build/runtime dependency.
+Semantic constraints such as conflicting names/duplicate rule IDs and transport
+byte limits are tested separately because JSON Schema does not express them.
+
 ## Self-contained tests
 
 `tests/*.test.js` covers shared logic, settings persistence and transport,

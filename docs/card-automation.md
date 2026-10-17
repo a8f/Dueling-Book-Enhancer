@@ -29,10 +29,10 @@ same list ID; review replacements before installing. Keep an export of an old
 version if you want to restore it. Exports omit local enablement. There is no
 automatic polling, list discovery, update subscription or publisher verification.
 
-Schema-1 procedures and schema-2 name-only rules are unsupported.
-Update lists to schema 3 with a printed passcode in every source and resolution
-card selector, then reimport them. Names alone never match a card. Existing
-schema-3 database ID selectors also remain supported.
+Lists use schema 4 with independently versioned action definitions. Schema 1-3
+lists must be converted and reimported. See the [formal contracts and upgrade
+instructions](automation-contracts.md). Printed passcode and native database ID
+selectors remain supported; names alone never match a card.
 Invalid persisted definitions cannot execute. No specific list is recreated
 automatically during settings sanitization or reset.
 
@@ -133,55 +133,18 @@ Watching is session-only: it never starts automatically on browser/extension
 startup. No rules source, local URL or watcher configuration is published or
 bundled into the extension by this workflow.
 
-## List contract (schema 3)
+## Formal contracts
 
-A list has `schemaVersion`, `id`, `name`, `version`, `formats` and `rules`. Each
-rule has:
+[Automation contracts](automation-contracts.md) defines spec (1), card action
+version 1, and spec (2), list version 4, with JSON Schemas and TypeScript
+contracts. Each list entry contains card metadata and a nested `action`.
+The document covers both executable pipelines, event/callback subscriptions,
+validation, producer requirements, limitations, the capability backlog and
+breaking upgrade instructions.
 
-- `id`, `card: { passcode, name }`, and a human-readable `label`. Passcodes are
-  eight-digit strings (the printed card password), preserving leading zeros:
-  `{ "passcode": "09411399", "name": "Destiny HERO - Malicious" }`.
-  A card without a printed passcode, such as a custom card, can instead use
-  `{ id, name }` with a positive Duelingbook database ID. Supply exactly one
-  identifier per selector. Names are display metadata; conflicting names for one
-  identifier within a list are rejected. No download is needed to match native
-  card metadata. Commands still use duel instance IDs to target individual copies.
-- `requires: { sourceZone, ownTurn, phases }`, optionally with `absentFaceUpCards`:
-  an array of card selectors that must not be face-up on either player's field
-  when activating. Card identities stay in the list. The engine checks them
-  before declaration and again before paying cost; negated continuous effects
-  require manual adjudication.
-- An `activation` array of native operation descriptors.
-- A `resolution` array with a card selector and permitted player choices.
-
-The first supported pipeline has one activation operation
-`{ op: "banish", card: "source" }` followed, on explicit resolution release,
-by one `{ op: "special-summon", from: "deck", card: { passcode, name }, positions }`
-operation. These are reusable operations: source and summoned card identities
-may differ and are supplied entirely by the list. Currently the source zone
-must be `graveyard`, `ownTurn` must be true, and positions can be `ATK`, `DEF`,
-or both. Required phases are supplied by the rule. Unsupported compositions,
-fields and operations are rejected rather than partially interpreted.
-
-A summon step can optionally specify `onNoMonsterZone: "destroy-to-graveyard"`.
-Activation still requires a free monster zone. If all zones become occupied
-before resolution, the engine searches the current Deck, identifies a matching
-copy, sends native `To GY`, waits for receipt and execution plus confirmed
-Graveyard placement, then closes the search for the native shuffle. The journal
-records destruction. Duelingbook represents manual destruction with this same
-movement command; consequences of destruction and replacement effects remain
-manual. Without this field the engine retains its ordinary stop-on-full-zone
-behavior. Schema 3 remains backward compatible for existing lists; older
-extension versions reject these new optional fields.
-
-Adding a new card using supported operations changes only the external JSON.
-Supporting a new operation requires an extension adapter with protocol and
-lifecycle tests. Lists cannot contain JavaScript, callbacks, arbitrary commands,
-network requests or expressions. The interpreter does not prove full legality,
-negation, replacements, continuous restrictions or chain resolution.
-
-Limits: 64 KB per import, 50 installed lists, 100 rules per list. Conflicting
-enabled rules for a card/format are blocked rather than executed together.
+Lists remain data only. New cards using supported operations require only JSON
+changes. A new operation or pipeline requires a versioned contract and extension
+adapter with protocol/lifecycle tests. No card rules are bundled.
 
 ## Duel UI and execution
 
@@ -236,6 +199,6 @@ the submodule even when it is initialized. No runtime code fetches that reposito
 automatically; end users choose whether to import a URL/file/string after loading
 the extension. A recursive Git clone is an explicit choice to download submodules.
 
-Run `node --test` for generic regression checks.
+Run `node scripts/test.mjs` for generic regression checks.
 `DBEnhancerDiagnostics.cardAutomation()` shows the current status and journal
 without exposing the searched Deck. Live-duel verification remains separate.

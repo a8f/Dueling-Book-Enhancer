@@ -8,11 +8,11 @@ const { createRuntime } = require("../extension/page/duel-events.js");
 const createFeature = require("../extension/page/features/card-automation.js");
 
 function definition() {
-  return { schemaVersion: 3, id: "test.trigger", name: "Trigger list", version: "1.0.0", formats: ["eu", "so"], enabled: true,
+  return { schemaVersion: 4, id: "test.trigger", name: "Trigger list", version: "1.0.0", formats: ["eu", "so"], enabled: true,
     rules: [{ id: "trigger", card: { passcode: "09000001", name: "Example Scout" }, label: "Summon choice",
-      requires: { sourceZone: "monster", ownTurn: false, phases: ["DP", "SP", "M1", "BP", "M2", "EP"], trigger: "normal-or-special-summon" },
+      action: { schemaVersion: 1, requires: { sourceZone: "monster", ownTurn: false, phases: ["DP", "SP", "M1", "BP", "M2", "EP"], trigger: "normal-or-special-summon" },
       activation: [], resolution: [{ op: "choose-search-or-destroy", monsterNamePrefixes: ["Example HERO "],
-        searchAbsentFaceUpCards: [{ passcode: "09000009", name: "Example Search Blocker" }] }] }] };
+        searchAbsentFaceUpCards: [{ passcode: "09000009", name: "Example Search Blocker" }] }] } }] };
 }
 function harness() {
   const cards = [];
@@ -75,13 +75,14 @@ function harness() {
 }
 
 test("choice schema validates both contracts and rejects unsupported instructions", async () => {
-  const vendored = (await import("../card-rule-extractor/schema-3.mjs")).default;
-  for (const api of [core, vendored]) {
-    assert.equal(api.importAutomationList(JSON.stringify(definition())).rules[0].requires.ownTurn, false);
-    for (const mutate of [list => list.rules[0].requires.trigger = "flip-summon", list => list.rules[0].activation.push({ op: "banish", card: "source" }),
-      list => list.rules[0].resolution[0].monsterNamePrefixes = [], list => list.rules[0].resolution[0].monsterNamePrefixes = ["HERO"],
-      list => list.rules[0].requires.phases = ["M1"], list => list.rules[0].resolution[0].script = "arbitrary",
-      list => list.rules[0].resolution[0].searchAbsentFaceUpCards[0].passcode = "09000001"]) {
+  const vendored = fs.existsSync(require("node:path").join(__dirname, "../card-rule-extractor/schema-4.mjs"))
+    ? (await import("../card-rule-extractor/schema-4.mjs")).default : null;
+  for (const api of [core, vendored].filter(Boolean)) {
+    assert.equal(api.importAutomationList(JSON.stringify(definition())).rules[0].action.requires.ownTurn, false);
+    for (const mutate of [list => list.rules[0].action.requires.trigger = "flip-summon", list => list.rules[0].action.activation.push({ op: "banish", card: "source" }),
+      list => list.rules[0].action.resolution[0].monsterNamePrefixes = [], list => list.rules[0].action.resolution[0].monsterNamePrefixes = ["HERO"],
+      list => list.rules[0].action.requires.phases = ["M1"], list => list.rules[0].action.resolution[0].script = "arbitrary",
+      list => list.rules[0].action.resolution[0].searchAbsentFaceUpCards[0].passcode = "09000001"]) {
       const value = definition(); mutate(value);
       assert.throws(() => api.importAutomationList(JSON.stringify(value)));
     }
@@ -539,7 +540,7 @@ test("destruction keeps identical field copies separate and never shows hidden o
 
 test("database-backed monster selectors match identity, not family-looking names, and enforce the Lua destruction minimum", () => {
   const h = harness();
-  const step = h.settings.automationLists[0].rules[0].resolution[0];
+  const step = h.settings.automationLists[0].rules[0].action.resolution[0];
   delete step.monsterNamePrefixes;
   step.monsterCards = [{ passcode: "09000002", name: "Example HERO Search" }];
   step.destructionMinimum = 1;
@@ -556,11 +557,12 @@ test("database-backed monster selectors match identity, not family-looking names
 });
 
 test("explicit monster selectors and destruction minimum reject ambiguous or unsupported schema variants", async () => {
-  const vendor = (await import("../card-rule-extractor/schema-3.mjs")).default;
-  for (const api of [core, vendor]) {
+  const vendor = fs.existsSync(require("node:path").join(__dirname, "../card-rule-extractor/schema-4.mjs"))
+    ? (await import("../card-rule-extractor/schema-4.mjs")).default : null;
+  for (const api of [core, vendor].filter(Boolean)) {
     for (const patch of [{ monsterCards: [] }, { monsterCards: [{ passcode: "09000006", name: "Member" }], monsterNamePrefixes: ["Example "] },
       { destructionMinimum: 2 }, { destructionMinimum: "1" }]) {
-      const list = definition(); Object.assign(list.rules[0].resolution[0], patch);
+      const list = definition(); Object.assign(list.rules[0].action.resolution[0], patch);
       assert.throws(() => api.importAutomationList(JSON.stringify(list)));
     }
   }

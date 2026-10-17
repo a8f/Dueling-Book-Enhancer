@@ -9,11 +9,11 @@ const { createRuntime } = require("../extension/page/duel-events.js");
 const createFeature = require("../extension/page/features/card-automation.js");
 const CARD = "Example Recruiter";
 function exampleList() {
-  return { schemaVersion: 3, id: "test.example", name: "Example list", version: "1.0.0", enabled: true,
+  return { schemaVersion: 4, id: "test.example", name: "Example list", version: "1.0.0", enabled: true,
     formats: ["ar", "au"], rules: [{ id: "example-recruit", card: { passcode: "09000001", name: CARD }, label: "Example summon effect",
-      requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
+      action: { schemaVersion: 1, requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
       activation: [{ op: "banish", card: "source" }],
-      resolution: [{ op: "special-summon", from: "deck", card: { passcode: "09000001", name: CARD }, positions: ["ATK", "DEF"] }] }] };
+      resolution: [{ op: "special-summon", from: "deck", card: { passcode: "09000001", name: CARD }, positions: ["ATK", "DEF"] }] } }] };
 }
 
 function card(instanceId, cardName = CARD, databaseId = cardName === CARD ? 90000001 : 90000002) {
@@ -131,8 +131,8 @@ test("only a matching local graveyard card in selected formats and a free zone i
 
 function historicalRule(h) {
   const rule = h.settings.automationLists[0].rules[0];
-  rule.requires.absentFaceUpCards = [{ passcode: "09000004", name: "Example Prohibition" }];
-  rule.resolution[0].onNoMonsterZone = "destroy-to-graveyard";
+  rule.action.requires.absentFaceUpCards = [{ passcode: "09000004", name: "Example Prohibition" }];
+  rule.action.resolution[0].onNoMonsterZone = "destroy-to-graveyard";
   return rule;
 }
 
@@ -141,11 +141,11 @@ test("optional historical fields validate strictly and roundtrip with prerequisi
   const fixture = h.settings.automationLists[0];
   assert.deepEqual(core.importAutomationList(core.exportAutomationList(fixture)).rules, fixture.rules);
   for (const invalid of [[], "anything", [{ name: "No identifier" }], Array(11).fill({ passcode: "09000004", name: "Example Prohibition" })]) {
-    const copy = structuredClone(fixture); copy.rules[0].requires.absentFaceUpCards = invalid;
+    const copy = structuredClone(fixture); copy.rules[0].action.requires.absentFaceUpCards = invalid;
     assert.throws(() => core.validateAutomationList(copy));
   }
   for (const invalid of [null, "send-to-graveyard", { script: "anything" }]) {
-    const copy = structuredClone(fixture); copy.rules[0].resolution[0].onNoMonsterZone = invalid;
+    const copy = structuredClone(fixture); copy.rules[0].action.resolution[0].onNoMonsterZone = invalid;
     assert.throws(() => core.validateAutomationList(copy));
   }
 });
@@ -228,9 +228,9 @@ test("selectors require passcodes or database IDs, reject legacy rules and incon
     assert.throws(() => core.validateAutomationList(list), /eight-digit passcode/);
   }
   const legacy = exampleList(); legacy.schemaVersion = 2;
-  assert.throws(() => core.validateAutomationList(legacy), /schema 3/);
+  assert.throws(() => core.validateAutomationList(legacy), /schema 4/);
   assert.deepEqual(core.sanitizeSettings({ automationLists: [legacy] }).automationLists, []);
-  const conflicting = exampleList(); conflicting.rules[0].resolution[0].card.name = "Wrong name";
+  const conflicting = exampleList(); conflicting.rules[0].action.resolution[0].card.name = "Wrong name";
   assert.throws(() => core.validateAutomationList(conflicting), /belongs to/);
 });
 
@@ -257,7 +257,7 @@ test("passcode matching tolerates numeric native data and different database IDs
 test("database ID selectors remain available for cards without passcodes", () => {
   const h = harness();
   h.settings.automationLists[0].rules[0].card = { id: 90000001, name: CARD };
-  h.settings.automationLists[0].rules[0].resolution[0].card = { id: 90000001, name: CARD };
+  h.settings.automationLists[0].rules[0].action.resolution[0].card = { id: 90000001, name: CARD };
   for (const card of [h.source, h.target]) card.data("cardfront", { data: key => ({ id: 90000001, name: CARD })[key] });
   h.prepared(); h.resolveToSummon();
   assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "SS DEF", card: 2, zone: "M-1" });
@@ -373,9 +373,9 @@ test("missing deck copy stops after cost without summoning a cached identity", (
 test("card names, phase requirements and summon positions are supplied by the imported rule", () => {
   const h = harness();
   const rule = h.settings.automationLists[0].rules[0];
-  rule.requires.phases = ["SP"];
-  rule.resolution[0].card = { passcode: "09000003", name: "Example Result" };
-  rule.resolution[0].positions = ["DEF"];
+  rule.action.requires.phases = ["SP"];
+  rule.action.resolution[0].card = { passcode: "09000003", name: "Example Result" };
+  rule.action.resolution[0].positions = ["DEF"];
   h.target.data("cardfront", { data: key => ({ id: 90000003, serial_number: "09000003", name: "Example Result", card_type: "Monster" })[key] });
   assert.equal(h.runtime.eligible(h.source), false);
   h.page.currentPhase = "SP";
@@ -627,7 +627,7 @@ test("quick summon requires ATK/DEF selection, then pays cost and summons in the
 });
 
 test("a rule with a single legal summon position may still auto-start", () => {
-  const h = harness(); h.settings.automationLists[0].rules[0].resolution[0].positions = ["DEF"];
+  const h = harness(); h.settings.automationLists[0].rules[0].action.resolution[0].positions = ["DEF"];
   h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" });
   assert.equal(h.commands.at(-1).play, "Declare");
   assert.equal(h.runtime.snapshot().position, "DEF");
