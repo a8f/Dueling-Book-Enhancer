@@ -25,6 +25,7 @@
       }
       return original.apply(this, arguments);
     };
+    Object.defineProperty(sendWrapper, "dbxEnhancerOriginal", { value: original });
     page.Send = sendWrapper;
   }
 

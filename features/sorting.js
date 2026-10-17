@@ -36,7 +36,8 @@
   }
 
   function copyCountKey(card) {
-    const name = normalizedCardName(core.readCardValue(card, "name"));
+    const name = String(core.readCardValue(card, "name") || "")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     if (name) return "name:" + name;
     const id = core.readCardValue(card, "id");
     if (id !== undefined && id !== null && String(id) !== "") {
@@ -105,6 +106,7 @@
     try {
       runCustomSort();
     } catch (error) {
+      window.DBEnhancerDebug?.error("custom-sort-error", error);
       console.error(
         "[Dueling Book Enhancer] Custom sort failed; using Dueling Book's original sort.",
         error

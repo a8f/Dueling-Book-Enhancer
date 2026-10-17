@@ -85,3 +85,11 @@ Card names and numeric Dueling Book card IDs are accepted. The aliases `banned`,
 ## Failure behavior
 
 Missing Dueling Book controls are skipped. Custom Sort falls back to Dueling Book's original sorter if it encounters an error. A remembered Card Pool that no longer exists falls back to the first enabled native pool, while decks without a remembered pool are left unchanged.
+
+## When game controls stop responding
+
+Before refreshing, press **Ctrl+Alt+Shift+D** on the Duelingbook tab to download a debug report. There is no on-page debug button. Send the downloaded `duelingbook-debug-*.json` file along with what you clicked and what you expected to happen. Reload the extension and refresh existing Duelingbook tabs once after installing this update to enable reporting.
+
+The report includes recent click/command/server-event summaries, errors, connection status, native click guards, animation queue state, automation settings, player LP/card counts, and control visibility/pointer hit tests. Warnings are also logged to the browser console when a control sends no command, a queue head remains unchanged for 15 seconds, or a supported command (including End/Start turn) awaits its echo for 10 seconds. These are diagnostic signals; animations, deliberate waits and disabled controls can also trigger them. The add-on does not retry game actions or change the site's queue/lock flags.
+
+Reports are created locally and never uploaded automatically. Structured state excludes passwords, chat, account names, card identities, deck contents and raw network messages. Error messages/stacks can contain page-provided text; review the file before sharing. History keeps at most 300 entries in memory for this tab and clears on refresh. Developer-console alternatives: `DBEnhancerDiagnostics.snapshot()` returns the report object and `DBEnhancerDiagnostics.download()` downloads it. See the [interaction audit](docs/interaction-debugging.md).

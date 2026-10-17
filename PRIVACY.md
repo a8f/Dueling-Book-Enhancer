@@ -19,6 +19,8 @@ The optional duel and watch passwords described above are room access codes. The
 
 ## Local storage
 
+The add-on keeps a bounded diagnostic history in tab memory (up to 300 entries), including command/event summaries, control clicks and errors. This history clears when the page reloads. Pressing **Ctrl+Alt+Shift+D** or calling the diagnostic download function in the developer console downloads a local JSON file containing that history, game status, automation preferences, player LP/card counts and control visibility. Structured diagnostics omit passwords, chat, account names, card identities, deck contents and raw network messages. Error text and stacks may contain page-provided content. Reports are not uploaded automatically; sharing a report is the user's choice. Downloaded files remain until the user deletes them.
+
 Extension settings are stored locally on the user’s device using Chrome’s extension storage system. Dueling Book Enhancer does not operate a developer-controlled server and does not transmit locally stored settings to the developer.
 
 When a user chooses to host or participate in activity on Dueling Book, information entered or automatically populated into Dueling Book may be submitted to Dueling Book through the website’s normal functionality. That interaction is governed by Dueling Book’s own terms and privacy practices.
