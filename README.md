@@ -23,6 +23,8 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 - Choose a saved RPS mode: Manual, Random on tie, or Automatic.
 - Click Automatic to pick randomly now, repeat after ties, and start future duels automatically. Random on tie waits for your first manual card choice.
 - Disable all RPS controls and automatic picks under Automation in settings.
+- Opt in to automatically choosing First whenever you can select the turn order, including after siding, under Automation → Turn order.
+- Toggle Automatically go first below the turn-selection cards; it saves the same preference and enabling it chooses First immediately.
 - Opt in to shuffling your hand after your first draw in your own Draw Phase, once per turn, under Automation in settings.
 - Optionally batch any draws before shuffling, with an aggressiveness slider from cautious to fast. The default waits 1 second after the last draw and 0.32 seconds with the pointer at least 44 pixels from the deck/draw menu. Manual shuffling immediately cancels the pending automatic shuffle, as do hand edits, leaving the tab, or 20 seconds of waiting. This delayed option takes priority over immediate turn-draw shuffling.
 - Group RPS, battle damage, and spell/trap LP costs under Automation in settings; battle damage suggestions can be disabled independently.

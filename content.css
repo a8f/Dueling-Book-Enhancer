@@ -65,6 +65,17 @@ html.dbx-hide-greenlines #greenlines {
   display: none !important;
 }
 
+.dbx-turn-order-control {
+  pointer-events: auto !important;
+  position: absolute;
+  left: 523px;
+  top: 560px;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+}
+
+.dbx-turn-order-control[hidden] { display: none !important; }
+
 #dbx-connection-health {
   position: fixed;
   top: 12px;

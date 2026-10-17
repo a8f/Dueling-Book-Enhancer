@@ -159,4 +159,9 @@ test("bridge relays settings and deduplicates its two transports", async () => {
   await client.api.execute({ type: "get-settings" });
   assert.equal(posted.at(-1).reason, "storage-change");
   assert.equal(posted.at(-1).settings.autoStartRps, true);
+  const firstCommand = { ...command, requestId: "go-first", type: "save-auto-go-first", enabled: true };
+  windowListeners.message({ source: window, data: firstCommand });
+  documentListeners["dueling-book-enhancer-v1-command"]({ detail: JSON.stringify(firstCommand) });
+  await client.api.execute({ type: "get-settings" });
+  assert.equal(posted.at(-1).settings.autoGoFirst, true);
 });

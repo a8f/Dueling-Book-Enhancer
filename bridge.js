@@ -55,7 +55,7 @@
   }
   const commands = new Set([
     "save-host-defaults", "save-deck-cardpool", "save-rps-mode",
-    "save-auto-pick-rps", "save-auto-start-rps"
+    "save-auto-pick-rps", "save-auto-start-rps", "save-auto-go-first"
   ]);
   function receivePageCommand(message) {
     if (!message || message.channel !== CHANNEL || message.source !== "page-main") return;

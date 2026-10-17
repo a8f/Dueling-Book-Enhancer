@@ -78,6 +78,10 @@
         settings.autoStartRps = command.mode === "automatic";
         settings.autoPickRps = command.mode !== "manual";
         break;
+      case "save-auto-go-first":
+        if (typeof command.enabled !== "boolean") throw new Error("Invalid turn-order preference.");
+        settings.autoGoFirst = command.enabled;
+        break;
       case "save-auto-pick-rps":
       case "save-auto-start-rps":
         if (typeof command.enabled !== "boolean") throw new Error("Invalid RPS preference.");

@@ -32,6 +32,7 @@
         "features/card-pools.js",
         "features/sorting.js",
         "features/rps.js",
+        "features/turn-order.js",
         "features/battle-damage.js",
         "features/activation-costs.js",
         "features/hand-shuffle.js",
