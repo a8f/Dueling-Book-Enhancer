@@ -7,7 +7,8 @@
   const ORIGIN = "https://static.duelingbook.com/*";
   const URL = "https://static.duelingbook.com/cards.json";
   const MAX_BYTES = 32 * 1024 * 1024;
-  const selectors = list => list.rules.flatMap(rule => [rule.card, ...(rule.requires?.absentFaceUpCards || []), ...rule.resolution.map(step => step.card)]);
+  const selectors = list => list.rules.flatMap(rule => [rule.card, ...(rule.requires?.absentFaceUpCards || []),
+    ...rule.resolution.flatMap(step => [step.card, ...(step.monsterCards || []), ...(step.searchAbsentFaceUpCards || [])].filter(Boolean))]);
   const key = card => card.passcode !== undefined ? "Passcode " + card.passcode : "DB ID " + card.id;
   function normalizePasscode(value) {
     const text = typeof value === "number" && Number.isSafeInteger(value) ? String(value) : value;

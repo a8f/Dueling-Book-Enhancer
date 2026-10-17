@@ -5,10 +5,13 @@
   "use strict";
   const { window: page, document, getSettings } = context;
   const ACTION = "DBX:card-automation";
+  const QUICK_ACTION = "DBX:card-automation-resolve";
   const wrappers = new Map();
   let initialized = false;
+  let nativePicker = false;
+  const nativeDecorations = new Map();
   let lastRenderedState;
-  let host, title, status, positions, modes, resolve, wait, cancel, source, journal, previousFocus;
+  let host, title, status, positions, resolve, wait, cancel, source, journal, previousFocus, effects, choices, confirm;
   const runtime = page.DBEnhancerCardAutomation.create({ page, getSettings, changed: render });
 
   function button(text, handler, parent) {
@@ -31,13 +34,17 @@
         width:min(440px,calc(100vw - 40px)); max-height:calc(100vh - 40px); overflow:auto;
         color:#f1f7fb; font:14px/1.5 Arial,sans-serif; }
       :host([hidden]) { display:none; } * { box-sizing:border-box; }
+      :host([data-native-picker]) { left:50%; top:60%; transform:translate(-50%,-50%); width:340px; max-height:38vh; }
       section { background:#162631f5; border:1px solid #91c8df; border-radius:12px;
         box-shadow:0 8px 30px #0008; padding:18px; } h2 { font-size:18px; margin:0 0 6px; }
       p { margin:8px 0; } .source { color:#b9cedb; font-size:12px; }
-      .positions, .modes, footer { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
-      .modes { background:#0b1b2599; border-radius:8px; padding:4px; }
-      .modes button { flex:1; border-color:transparent; padding:9px 8px; font-size:13px; background:transparent; }
+      .positions, footer { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
       .positions button { flex:1; background:#13556e; min-height:48px; }
+      .card-choices { display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:10px; margin-top:12px; }
+      .card-choices button { position:relative; padding:4px; min-width:0; font-size:12px; }
+      .card-choices img { display:block; width:100%; aspect-ratio:59/86; object-fit:contain; background:#0b1b25; }
+      .card-choices .card-name { display:block; margin-top:5px; }
+      .card-choices .copies { position:absolute; top:7px; right:7px; background:#12212dee; border-radius:10px; padding:2px 6px; }
       button { font:600 14px Arial,sans-serif; border:1px solid #86afc3; border-radius:6px;
         padding:10px 12px; background:#293f4d; color:white; cursor:pointer; }
       button[aria-pressed=true] { background:#086e8b; border-color:#a6eeff; }
@@ -55,23 +62,22 @@
     status = document.createElement("p");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
-    modes = document.createElement("div");
-    modes.className = "modes";
-    modes.setAttribute("role", "group");
-    modes.setAttribute("aria-label", "Resolution timing");
-    for (const mode of ["resolve", "wait"]) {
-      const element = button(mode === "resolve" ? "Activate & resolve" : "Wait for opponent", () => runtime.selectMode(mode), modes);
-      element.dataset.mode = mode;
-    }
     positions = document.createElement("div");
     positions.className = "positions";
     positions.setAttribute("role", "group");
     positions.setAttribute("aria-label", "Special Summon position");
     for (const position of ["ATK", "DEF"]) {
-      const element = button(position === "ATK" ? "Summon in ATK" : "Summon in DEF", () => runtime.begin(position), positions);
+      const element = button(position === "ATK" ? "Summon in ATK" : "Summon in DEF", () => runtime.snapshot()?.state === "choose" ? runtime.begin(position) : runtime.choose(position), positions);
       element.dataset.position = position;
     }
+    effects = document.createElement("div");
+    effects.className = "positions";
+    choices = document.createElement("div");
+    choices.className = "card-choices";
+    choices.setAttribute("role", "group");
+    choices.setAttribute("aria-label", "Cards chosen at resolution");
     const footer = document.createElement("footer");
+    confirm = button("Confirm selection", () => runtime.confirmCards(), footer);
     resolve = button("Resolve now", () => runtime.release(), footer);
     wait = button("Wait for opponent", () => runtime.release(true), footer);
     cancel = button("Cancel", () => {
@@ -80,7 +86,7 @@
       else hide();
     }, footer);
     journal = document.createElement("ol");
-    for (const child of [title, source, modes, status, positions, footer, journal]) section.appendChild(child);
+    for (const child of [title, source, status, positions, effects, choices, footer, journal]) section.appendChild(child);
     shadow.appendChild(section);
     // Keep native single-key duel shortcuts from handling panel interactions.
     for (const type of ["keydown", "keyup", "keypress"]) section.addEventListener(type, event => {
@@ -100,24 +106,107 @@
     host.hidden = true;
     if (focused && previousFocus && previousFocus.isConnected) previousFocus.focus();
   }
+  function clearNativeDecorations() {
+    for (const [node, previous] of nativeDecorations) {
+      node.style.outline = previous.outline;
+      node.style.outlineOffset = previous.outlineOffset;
+      previous.badge?.remove();
+    }
+    nativeDecorations.clear();
+  }
+  function decorateNative(value) {
+    clearNativeDecorations();
+    for (const choice of value.choices) {
+      const card = page.getDuelCard?.(choice.instanceId)?.[0];
+      // Native .card is positioned at the card's centre. Its visible face lives
+      // inside .content, translated by -50% on both axes (utils.js Card()).
+      // Decorations must share that translated box, rather than the outer anchor.
+      const node = card?.querySelector?.(":scope > .content") || card;
+      if (!node?.style) continue;
+      const previous = { outline: node.style.outline, outlineOffset: node.style.outlineOffset };
+      if (choice.selected) { node.style.outline = "14px solid #76e9ff"; node.style.outlineOffset = "8px"; }
+      if (choice.copies > 1) {
+        const badge = document.createElement("span");
+        badge.textContent = "×" + choice.copies;
+        badge.style.cssText = "position:absolute;right:16px;bottom:28px;z-index:100;pointer-events:none;font:bold 100px Arial;color:white;background:#12212dee;border-radius:35px;padding:8px 22px;";
+        node.appendChild(badge); previous.badge = badge;
+      }
+      nativeDecorations.set(node, previous);
+    }
+  }
+  function syncNativePicker(value) {
+    const supported = value?.state === "select-search" && page.viewing === "Deck" && typeof page.viewCards === "function" &&
+      typeof page.getDuelCard === "function" && Boolean(document.querySelector?.("#view > .content")) &&
+      value.choices.every(choice => page.getDuelCard(choice.instanceId)?.[0]);
+    const wasNative = nativePicker;
+    nativePicker = Boolean(supported);
+    if (nativePicker) {
+      page.removeCardMenu?.("automation card picker");
+      page.viewCards(page.player1.main_arr);
+    } else if (wasNative) {
+      clearNativeDecorations();
+      if (page.viewing === "Deck") page.viewCards(page.player1.main_arr);
+    }
+  }
   function render(value) {
+    syncNativePicker(value);
     if (!value) { hide(); return; }
-    if (value.state === "completed") { hide(); return; }
+    if (["adding", "close-deck", "completed"].includes(value.state)) { hide(); lastRenderedState = value.state; return; }
+    if (nativePicker && !value.confirmSelections) { hide(); lastRenderedState = value.state; return; }
     ensurePanel();
     const opening = host.hidden;
+    const focusedChoice = host.shadowRoot.activeElement?.dataset?.choice;
+    const focusedEffect = host.shadowRoot.activeElement?.dataset?.effect;
     host.hidden = false;
     title.textContent = value.cardName;
-    source.textContent = value.list + " · " + value.version + " · " + value.effectLabel + " · " + (value.position || "Choose position");
+    source.textContent = value.list + " · " + value.version + " · " + value.effectLabel + (value.trigger ? "" : " · " + (value.position || "Choose position"));
     status.textContent = value.message;
-    const canChoose = value.state === "choose";
-    modes.hidden = !canChoose;
-    for (const element of modes.children) element.setAttribute("aria-pressed", String(element.dataset.mode === value.mode));
-    positions.hidden = !canChoose;
+    const configuring = ["choose", "declaring", "banishing", "ready", "waiting", "approved", "suspended"].includes(value.state);
+    positions.hidden = !configuring || value.trigger;
     for (const element of positions.children) {
       element.hidden = !value.positions.includes(element.dataset.position);
       element.setAttribute("aria-pressed", String(element.dataset.position === value.position));
     }
-    const canResolve = value.costPaid && ["ready", "waiting", "suspended"].includes(value.state);
+    effects.hidden = !value.trigger || !configuring;
+    effects.replaceChildren();
+    for (const option of value.options || []) {
+      const element = button(option.label, () => runtime.begin(option.key), effects);
+      element.dataset.effect = option.key;
+      element.disabled = option.disabled;
+      element.setAttribute("aria-pressed", String(option.key === value.effectChoice));
+    }
+    const selecting = ["select-search", "select-destroy"].includes(value.state);
+    if (nativePicker) host.setAttribute("data-native-picker", "");
+    else host.removeAttribute?.("data-native-picker");
+    if (nativePicker) status.textContent = "Left-click a card in the Deck window, then confirm your selection here.";
+    else if (value.state === "select-search" && !value.confirmSelections) status.textContent = "Click a card to add it to your hand.";
+    const selectedCount = (value.choices || []).filter(choice => choice.selected).length;
+    choices.hidden = !selecting || nativePicker;
+    choices.replaceChildren();
+    for (const choice of selecting && !nativePicker ? value.choices : []) {
+      const element = button(choice.label, () => runtime.selectCard(choice.key), choices);
+      element.textContent = "";
+      element.setAttribute("aria-label", choice.label + (choice.copies > 1 ? " (" + choice.copies + " copies)" : ""));
+      if (choice.imageUrl) {
+        const art = document.createElement("img");
+        art.src = choice.imageUrl; art.alt = choice.label; art.loading = "lazy";
+        element.appendChild(art);
+      }
+      const name = document.createElement("span"); name.className = "card-name"; name.textContent = choice.label;
+      element.appendChild(name);
+      if (choice.copies > 1) {
+        const count = document.createElement("span"); count.className = "copies"; count.textContent = "×" + choice.copies;
+        element.appendChild(count);
+      }
+      element.dataset.choice = choice.key;
+      element.setAttribute("aria-pressed", String(choice.selected));
+      element.disabled = value.state === "select-destroy" && !choice.selected && selectedCount >= value.maximum;
+    }
+    confirm.hidden = !selecting || (value.state === "select-search" && !value.confirmSelections);
+    confirm.disabled = value.state === "select-search" ? selectedCount !== 1 : selectedCount > value.maximum || selectedCount < (value.minimum || 0);
+    confirm.textContent = value.state === "select-destroy" && !selectedCount && !value.minimum ? "Destroy no cards" :
+      value.state === "select-destroy" && !value.confirmSelections ? "Done selecting" : "Confirm selection";
+    const canResolve = (value.costPaid || value.activated) && ["ready", "waiting", "suspended"].includes(value.state);
     resolve.hidden = !canResolve;
     wait.hidden = !canResolve || value.state === "waiting";
     wait.textContent = "Re-arm opponent wait";
@@ -128,8 +217,12 @@
       item.textContent = step;
       journal.appendChild(item);
     }
-    if (opening || (value.state === "choose" && lastRenderedState === "locking")) {
-      (canChoose ? Array.from(positions.children).find(element => !element.hidden) : cancel).focus();
+    if (value.trigger && configuring && focusedEffect !== undefined) {
+      (Array.from(effects.children).find(element => element.dataset.effect === focusedEffect) || cancel).focus();
+    } else if (selecting && !nativePicker && (value.state !== lastRenderedState || focusedChoice !== undefined)) {
+      (Array.from(choices.children).find(element => element.dataset.choice === focusedChoice) || choices.children[0] || confirm).focus();
+    } else if (opening || (value.state === "choose" && lastRenderedState === "locking")) {
+      (configuring ? (value.trigger ? effects.children[0] || cancel : Array.from(positions.children).find(element => !element.hidden)) : cancel).focus();
     } else {
       const focused = host.shadowRoot.activeElement;
       if (focused && (focused.hidden || focused.parentElement?.hidden)) {
@@ -146,23 +239,40 @@
     wrappers.set(name, wrapper);
   }
   function install() {
+    wrap("viewCards", original => function(cards, options) {
+      const value = runtime.snapshot();
+      if (nativePicker && value?.state === "select-search" && page.viewing === "Deck" && cards === page.player1.main_arr) {
+        const entries = value.choices.map(choice => ({ choice, card: page.getDuelCard(choice.instanceId) }))
+          .filter(entry => cards.includes(entry.card));
+        // Native viewCards pairs cards with options.deck by index when supplied.
+        // Preserve that pairing without changing the actual Deck or its order.
+        const filteredOptions = options?.deck ? { ...options, deck: entries.map(entry => options.deck[cards.indexOf(entry.card)]) } : options;
+        const result = original.call(this, entries.map(entry => entry.card), filteredOptions);
+        decorateNative(value);
+        return result;
+      }
+      return original.apply(this, arguments);
+    });
     wrap("showMenu", original => function(card, items) {
-      if (Array.isArray(items) && runtime.available(card) && !items.some(item => item.data === ACTION)) {
+      if (nativePicker && page.viewing === "Deck" && page.player1.main_arr.includes(card)) return;
+      if (Array.isArray(items) && runtime.available(card) && !items.some(item => item.data === ACTION || item.data === QUICK_ACTION)) {
         items = items.slice();
         const declare = items.findIndex(item => item.data === "Declare");
-        items.splice(declare < 0 ? items.length : declare + 1, 0, { label: "Automate effect…", data: ACTION });
+        items.splice(declare < 0 ? items.length : declare + 1, 0,
+          { label: "Resolve now", data: QUICK_ACTION },
+          { label: "Wait for opponent", data: ACTION });
       }
       return original.call(this, card, items);
     });
     wrap("cardMenuClicked", original => function(card, action, event) {
-      if (action !== ACTION) return original.apply(this, arguments);
+      if (action !== ACTION && action !== QUICK_ACTION) return original.apply(this, arguments);
       if (!runtime.available(card)) return;
       const current = runtime.snapshot();
       if (current && !current.finished) { if (host) host.hidden = false; return; }
       previousFocus = document.activeElement;
       if (host) host.hidden = true;
       if (typeof page.removeCardMenu === "function") page.removeCardMenu("card automation");
-      runtime.prepare(card);
+      runtime.prepare(card, { autoStart: true, mode: action === QUICK_ACTION ? "resolve" : "wait" });
     });
     wrap("Send", original => function(message) {
       runtime.outgoing(message);
@@ -170,7 +280,7 @@
     });
   }
   return {
-    settingsKeys: ["automationLists"],
+    settingsKeys: ["automationLists", "automationConfirmSelections"],
     initialize() {
       if (initialized || !page.DBEnhancerDuelEvents) return;
       initialized = true;
@@ -179,9 +289,23 @@
       page.DBEnhancerDuelEvents.register({ id: "card-automation-execute", includeNonLive: true, run: runtime.observe });
       install();
       document.addEventListener("visibilitychange", () => { if (document.hidden) runtime.cancel(); });
+      // Capture left-click before native card menus or actions can handle it.
+      document.addEventListener("click", event => {
+        if (!nativePicker || event.button !== 0) return;
+        const content = document.querySelector("#view > .content");
+        if (!content?.contains(event.target)) return;
+        const value = runtime.snapshot();
+        const choice = value?.choices.find(entry => {
+          const node = page.getDuelCard(entry.instanceId)?.[0];
+          return node && (node === event.target || node.contains(event.target));
+        });
+        if (!choice) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        runtime.selectCard(choice.key);
+      }, true);
     },
     tick() { install(); runtime.tick(); },
-    settingsChanged() { runtime.tick(); },
+    settingsChanged() { runtime.tick(); render(runtime.snapshot()); },
     diagnostics: { cardAutomation: runtime.snapshot }
   };
 });

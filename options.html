@@ -115,8 +115,8 @@
                   <summary>Local development</summary>
                   <div class="rules-tool-body">
                     <p>Watch local JSON while this tab stays open. Valid saves update live; your formats and enabled state stay intact.</p>
-                    <label for="automation-list-local-url">Local JSON URL</label>
-                    <input id="automation-list-local-url" type="text" inputmode="url" placeholder="http://127.0.0.1:8765/list.json">
+                    <label for="automation-list-local-url">Local JSON filename or URL</label>
+                    <input id="automation-list-local-url" type="text" inputmode="url" placeholder="edison.json or http://127.0.0.1:8765/list.json">
                     <div class="rules-tool-buttons">
                       <button id="automation-list-watch" type="button" class="secondary-button">Watch local list</button>
                       <button id="automation-list-watch-stop" type="button" class="secondary-button" hidden>Stop watching</button>
@@ -127,6 +127,11 @@
             </div>
             <div id="automation-list-rows" class="rules-table-container"></div>
             <p id="automation-list-watch-status" class="rules-watch-status" role="status" aria-live="polite"></p>
+          </div>
+          <div class="panel rps-settings">
+            <h3>Card selection</h3>
+            <label class="preserve-control"><input id="automation-confirm-selections" type="checkbox" aria-describedby="automation-confirm-selections-description"><strong>Confirm card selections</strong></label>
+            <p id="automation-confirm-selections-description" class="setting-description">Show a confirmation panel before applying card rule selections. Off by default: click a card to use it immediately. Multi-card effects still let you finish with fewer cards than the maximum.</p>
           </div>
           <div class="panel rps-settings">
             <h3>Hand shuffle</h3>

@@ -75,10 +75,14 @@ test("local updates preserve disabled state and format overrides; new watched li
   assert.throws(() => mergeList(Array.from({ length: 50 }, (_, id) => ({ ...list, id: String(id) })), list));
 });
 
-test("local URL validation allows only explicit loopback JSON files", () => {
+test("local URL validation expands bare filenames and allows only loopback JSON files", () => {
+  assert.equal(normalizeLocalUrl("edison.json"), "http://127.0.0.1:8765/edison.json");
+  assert.equal(normalizeLocalUrl("  custom-list.v2.json  "), "http://127.0.0.1:8765/custom-list.v2.json");
   assert.equal(normalizeLocalUrl("http://127.0.0.1:8765/example.json"), "http://127.0.0.1:8765/example.json");
+  assert.equal(normalizeLocalUrl("http://127.0.0.1:9000/example.json"), "http://127.0.0.1:9000/example.json");
   for (const url of ["http://localhost:8765/example.json", "http://192.168.1.1/example.json", "https://example.com/example.json",
-    "http://user:secret@127.0.0.1/example.json", "http://127.0.0.1/.git/config", "http://127.0.0.1/example.json?x=1"]) {
+    "http://user:secret@127.0.0.1/example.json", "http://127.0.0.1/.git/config", "http://127.0.0.1/example.json?x=1",
+    "", "../edison.json", "folder/edison.json", "//example.com/edison.json", "edison.json?x=1", "edison.json#fragment"]) {
     assert.throws(() => normalizeLocalUrl(url));
   }
 });

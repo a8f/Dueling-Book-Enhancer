@@ -39,6 +39,15 @@ beside `personal-rules/edison.json`; previews select it with `--reviews`. The ge
 compiler can correct/reconstruct historical effects independently of modern Lua.
 It validates the external review again before writing.
 
+The Lua translator also recognizes the complete legacy optional summon-trigger
+choice between a revealed archetype-monster Deck search and non-targeting
+Spell/Trap destruction. It expands archetype membership from the local database
+into explicit card selectors and preserves the Lua destruction selection minimum.
+Recognized scripts can be previewed under `simulator` without a review; Edison
+still requires the external historical review. Reports retain the simulator rule
+and explain historical corrections. Extra costs, conditions, operations and
+unrecognized script shapes are rejected. This does not interpret arbitrary Lua.
+
 Edison runs automatically fetch missing source data from the card-specific
 historical sections and the public JSON used by edisonformat.net. The ignored
 `card-rule-extractor/.cache/rulings/` directory retains this data indefinitely,

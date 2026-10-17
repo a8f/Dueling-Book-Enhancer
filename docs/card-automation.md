@@ -47,6 +47,31 @@ Permission denial or download failure does not install or replace a list and all
 retrying or ordinary offline preview/import. The duel runtime also blocks known
 name mismatches before activation or summoning.
 
+The summon-choice adapter accepts either historical `monsterNamePrefixes` or an
+explicit `monsterCards` selector list generated from a simulator archetype snapshot.
+`destructionMinimum` can require one selection when eligible cards remain at
+resolution; its historical default is zero. Search uses the same filtered native
+Deck picker for either selector form, with an art grid fallback and grouped Deck
+copies. Field cards remain separate choices by zone. Names/types/archetypes changed
+by effects, chains, negation and replacement effects are adjudicated manually.
+
+The native card menu offers **Resolve now** to declare and begin resolution
+immediately, or **Wait for opponent** to declare and wait for a fresh opponent
+thumbs-up. Both are single-click actions. The panel starts with the first available
+effect or first listed summon position; effect/position buttons remain available
+while waiting. Changing a choice invalidates pending approval and automatically
+re-arms the wait. **Resolve now** remains available for manual release. Summon
+timing stays manual without a confirmation checkbox. Effect choice locks when
+resolution starts, and activation is sent only once.
+
+**Automation → Confirm card selections** is off by default. A Deck-search click
+immediately applies the selected card, and the native Deck picker has no extra
+confirmation panel. Enable it to select first and confirm in a panel near the
+middle of the screen. Multi-card choices finish automatically at their maximum
+when confirmation is off; **Done selecting** resolves fewer selections, and
+**Destroy no cards** remains available when zero is legal. This preference is
+local and independent of the selected rule list and opponent-approval mode.
+
 ## Local development without publishing
 
 The optional [simulator extractor](simulator-rule-extraction.md) lives in its own

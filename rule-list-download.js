@@ -23,8 +23,10 @@
     return fetchText(url, fetchImpl);
   }
   function normalizeLocalUrl(value) {
+    const input = typeof value === "string" ? value.trim() : "";
+    const expanded = /^[a-z0-9][a-z0-9._-]*\.json$/i.test(input) ? "http://127.0.0.1:8765/" + input : input;
     let url;
-    try { url = new URL(value); } catch (_) { throw new Error("Enter a local rules URL."); }
+    try { url = new URL(expanded); } catch (_) { throw new Error("Enter a JSON filename or local rules URL."); }
     if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || url.username || url.password ||
         url.search || url.hash || !/^\/[a-z0-9][a-z0-9._-]*\.json$/i.test(url.pathname)) {
       throw new Error("Use http://127.0.0.1:port/list.json for local development.");

@@ -428,13 +428,14 @@ test("feature adds a native card-menu item beside Declare and preserves ordinary
   feature.tick();
   const original = [{ label: "Declare", data: "Declare" }, { label: "Banish", data: "Banish" }];
   assert.equal(h.page.showMenu(h.source, original), "native");
-  assert.equal(seen[0].items[1].data, "DBX:card-automation");
+  assert.deepEqual(seen[0].items.slice(1, 3).map(item => [item.label, item.data]), [
+    ["Resolve now", "DBX:card-automation-resolve"], ["Wait for opponent", "DBX:card-automation"]]);
   assert.equal(original.length, 2);
   h.page.cardMenuClicked(h.source, "Declare", {});
   assert.equal(clicks.length, 1);
   h.page.duelFormat = "eu";
   h.page.showMenu(h.source, original);
-  assert.equal(seen[1].items[1].data, "DBX:card-automation", "discovery remains visible outside the enabled format");
+  assert.equal(seen[1].items[1].data, "DBX:card-automation-resolve", "discovery remains visible outside the enabled format");
   const wrapped = h.page.showMenu;
   feature.tick(); assert.equal(h.page.showMenu, wrapped);
 });
@@ -471,7 +472,7 @@ test("Solo and disabled-list discovery explains scope without enabling the list 
   assert.equal(h.runtime.prepare(h.source), true);
 });
 
-test("centered card panel starts from its position buttons and arms waiting without another confirmation", () => {
+test("native automation declares immediately and allows position changes while waiting for approval", () => {
   const h = harness();
   const nodes = [];
   let shadow;
@@ -500,9 +501,9 @@ test("centered card panel starts from its position buttons and arms waiting with
   h.page.cardMenuClicked(h.source, "DBX:card-automation", {});
   const click = text => nodes.find(node => node.tag === "button" && node.textContent === text).click();
   const get = text => nodes.find(node => node.tag === "button" && node.textContent === text);
-  assert.equal(get("Activate & resolve").attrs["aria-pressed"], "true");
-  assert.equal(shadow.activeElement.textContent, "Summon in ATK");
-  click("Wait for opponent");
+  assert.equal(feature.diagnostics.cardAutomation().mode, "wait");
+  assert.equal(get("Activate & resolve"), undefined);
+  assert.equal(h.commands.length, 1);
   click("Summon in DEF"); click("Summon in DEF");
   assert.equal(h.commands.length, 1);
   h.echo("Declare", { id: 1 }); feature.tick();
@@ -510,6 +511,9 @@ test("centered card panel starts from its position buttons and arms waiting with
   assert.equal(get("Resolve now").hidden, false);
   assert.equal(feature.diagnostics.cardAutomation().state, "waiting");
   assert.equal(feature.diagnostics.cardAutomation().position, "DEF");
+  click("Summon in ATK");
+  assert.equal(feature.diagnostics.cardAutomation().state, "waiting");
+  assert.equal(feature.diagnostics.cardAutomation().position, "ATK");
   click("Cancel");
   assert.equal(feature.diagnostics.cardAutomation().state, "canceled");
   assert.equal(h.commands.length, 2);
@@ -544,6 +548,17 @@ test("one position choice in wait mode arms a fresh thumbs-up gate after paying 
   assert.equal(h.commands.length, 2, "an early signal cannot release the new wait");
   h.echo("Good", { username: "Opponent", seconds: 2 }); h.runtime.tick();
   assert.equal(h.commands.at(-1).play, "Stop viewing");
+});
+
+test("quick automatic activation pays its cost and starts resolution without an opponent signal", () => {
+  const h = harness();
+  assert.equal(h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" }), true);
+  assert.equal(h.commands.at(-1).play, "Declare");
+  h.echo("Declare", { id: 1 }); h.runtime.tick(); assert.equal(h.commands.at(-1).play, "Banish");
+  h.echo("Banish", { id: 1 }); h.runtime.tick();
+  assert.equal(h.commands.at(-1).play, "Stop viewing");
+  assert.equal(h.runtime.snapshot().costPaid, true);
+  assert.equal(h.runtime.snapshot().mode, "resolve");
 });
 
 test("opponent Thinking during activation suspends an immediate flow after the cost", () => {

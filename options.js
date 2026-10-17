@@ -932,6 +932,7 @@
     document.getElementById("rps-enhancements").checked = currentSettings.rpsEnhancements;
     document.getElementById("auto-go-first").checked = currentSettings.autoGoFirst;
     document.getElementById("auto-pay-activation-costs").checked = currentSettings.autoPayActivationCosts;
+    document.getElementById("automation-confirm-selections").checked = currentSettings.automationConfirmSelections;
     renderAutomationLists();
     document.getElementById("battle-damage-confirmation").checked = currentSettings.battleDamageConfirmation;
     document.getElementById("auto-shuffle-hand").checked = currentSettings.autoShuffleHand;
@@ -983,6 +984,7 @@
     candidate.rpsEnhancements = document.getElementById("rps-enhancements").checked;
     candidate.autoGoFirst = document.getElementById("auto-go-first").checked;
     candidate.autoPayActivationCosts = document.getElementById("auto-pay-activation-costs").checked;
+    candidate.automationConfirmSelections = document.getElementById("automation-confirm-selections").checked;
     candidate.automationLists = readAutomationLists();
     candidate.battleDamageConfirmation = document.getElementById("battle-damage-confirmation").checked;
     candidate.autoShuffleHand = document.getElementById("auto-shuffle-hand").checked;
@@ -1146,6 +1148,10 @@
     document.getElementById("automation-list-watch-status").textContent = message;
   }
   document.getElementById("automation-list-watch-stop").addEventListener("click", () => stopLocalWatch());
+  document.getElementById("automation-list-local-url").addEventListener("change", event => {
+    try { event.target.value = window.DBEnhancerRuleListDownload.normalizeLocalUrl(event.target.value); }
+    catch (_) { /* Keep incomplete input editable; Watch reports validation errors. */ }
+  });
   document.getElementById("automation-list-watch").addEventListener("click", async () => {
     stopLocalWatch("Starting local development…");
     const generation = localWatchGeneration;
@@ -1156,6 +1162,7 @@
     document.getElementById("automation-list-watch-stop").hidden = false;
     try {
       const url = window.DBEnhancerRuleListDownload.normalizeLocalUrl(input.value);
+      input.value = url;
       const granted = await requestRulesPermission({ origins: ["http://127.0.0.1/*"] });
       if (generation !== localWatchGeneration) return;
       if (!granted) throw new Error("Local development permission was not granted.");

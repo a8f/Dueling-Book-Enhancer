@@ -4,6 +4,15 @@ const assert = require("node:assert/strict");
 const { create } = require("../rule-card-validation.js");
 const list = (name = "Known card", id = 123) => ({ rules: [{ card: { id, name }, resolution: [{ card: { id: 456, name: "Result" } }] }] });
 
+test("choice rules validate branch prohibitions without requiring a fixed result card", () => {
+  const validator = create({ requestPermission: async () => false });
+  const rules = list();
+  rules.rules[0].resolution = [{ op: "choose-search-or-destroy", searchAbsentFaceUpCards: [{ id: 789, name: "Prohibition" }] }];
+  assert.deepEqual(validator.check(rules), { checked: 0, unknown: ["DB ID 123", "DB ID 789"] });
+  rules.rules[0].resolution[0].monsterCards = [{ id: 456, name: "Example member" }];
+  assert.deepEqual(validator.check(rules), { checked: 0, unknown: ["DB ID 123", "DB ID 456", "DB ID 789"] });
+});
+
 test("catalog validation matches padded printed passcodes in compact and full records", async () => {
   const rules = list("Destiny HERO - Malicious");
   rules.rules[0].card = { passcode: "09411399", name: "Destiny HERO - Malicious" };
