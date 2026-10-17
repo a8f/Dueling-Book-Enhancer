@@ -49,3 +49,18 @@
 html.dbx-hide-greenlines #greenlines {
   display: none !important;
 }
+
+#dbx-auto-rps-control {
+  pointer-events: auto !important;
+  position: absolute;
+  left: 523px;
+  top: 320px;
+  transform: translate(-50%, -50%);
+  width: 350px;
+  height: 30px;
+  z-index: 3;
+}
+
+#dbx-auto-rps-control[hidden] {
+  display: none !important;
+}

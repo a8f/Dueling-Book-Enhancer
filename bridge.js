@@ -127,6 +127,23 @@
       saveHostDefaults(message.hostDefaults);
     } else if (message.type === "save-deck-cardpool") {
       saveDeckCardpool(message.deckId, message.cardpool);
+    } else if (message.type === "save-rps-mode" && ["manual", "repeat", "automatic"].includes(message.mode)) {
+      chrome.storage.local.get(SETTINGS_KEY, function currentSettingsLoaded(result) {
+        chrome.storage.local.set({ settings: Object.assign({}, result[SETTINGS_KEY] || {}, {
+          autoStartRps: message.mode === "automatic",
+          autoPickRps: message.mode !== "manual"
+        }) });
+      });
+    } else if (
+      (message.type === "save-auto-pick-rps" || message.type === "save-auto-start-rps") &&
+      typeof message.enabled === "boolean"
+    ) {
+      const preference = message.type === "save-auto-start-rps" ? "autoStartRps" : "autoPickRps";
+      chrome.storage.local.get(SETTINGS_KEY, function currentSettingsLoaded(result) {
+        chrome.storage.local.set({
+          settings: Object.assign({}, result[SETTINGS_KEY] || {}, { [preference]: message.enabled })
+        });
+      });
     }
   }
 

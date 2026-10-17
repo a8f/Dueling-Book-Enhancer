@@ -891,6 +891,15 @@
     };
   }
 
+  function syncRpsSettingsAvailability() {
+    const disabled = !document.getElementById("rps-enhancements").checked;
+    ["manual", "repeat", "automatic"].forEach(mode => {
+      document.getElementById("rps-mode-" + mode).disabled = disabled;
+    });
+  }
+
+  document.getElementById("rps-enhancements").addEventListener("change", syncRpsSettingsAvailability);
+
   function renderSettings(settings) {
     currentSettings = core.sanitizeSettings(settings);
 
@@ -930,6 +939,12 @@
       currentSettings.rememberCardList;
     document.getElementById("show-grid-lines").checked =
       currentSettings.showGridLines;
+    document.getElementById("rps-enhancements").checked = currentSettings.rpsEnhancements;
+    const rpsMode = currentSettings.autoStartRps ? "automatic" : currentSettings.autoPickRps ? "repeat" : "manual";
+    ["manual", "repeat", "automatic"].forEach(mode => {
+      document.getElementById("rps-mode-" + mode).checked = mode === rpsMode;
+    });
+    syncRpsSettingsAvailability();
 
     buildSortCategories(currentSettings);
     renderCardPools();
@@ -967,6 +982,9 @@
       document.getElementById("remember-card-list").checked;
     candidate.showGridLines =
       document.getElementById("show-grid-lines").checked;
+    candidate.rpsEnhancements = document.getElementById("rps-enhancements").checked;
+    candidate.autoStartRps = document.getElementById("rps-mode-automatic").checked;
+    candidate.autoPickRps = candidate.autoStartRps || document.getElementById("rps-mode-repeat").checked;
     candidate.customSort.groups = readSortGroupsFromDom();
     candidate.cardPools.order = Array.from(cardPoolList.querySelectorAll(".card-pool-card")).map(card => card.dataset.poolId);
     candidate.cardPools.enabled = {};

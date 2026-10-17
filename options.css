@@ -105,6 +105,9 @@ input[type="checkbox"] { accent-color:var(--accent-strong); height:18px; width:1
 .remember-card-list { max-width:640px; padding:18px 22px; }
 .remember-card-list .preserve-control { padding:0; }
 .setting-description { color:var(--muted); line-height:1.5; margin:10px 0 0 28px; }
+.rps-settings { max-width:760px; padding:18px 22px; }
+.rps-settings .preserve-control { padding:0; }
+.rps-settings .check-control { margin-top:20px; }
 .grid-lines-control { margin-bottom:18px; max-width:360px; }
 
 .file-button { background:var(--accent-strong); border-radius:8px; color:#fff; cursor:pointer; font-weight:800; padding:10px 15px; }

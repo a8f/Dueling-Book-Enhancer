@@ -20,6 +20,9 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 - Show or hide Dueling Book's `greenlines` background-grid layer independently of the main background.
 - Choose dark or light mode and cyan, pink/lavender, or autumn settings themes.
 - Reveal or mask either saved Host password with a state-matched eye icon.
+- Choose a saved RPS mode: Manual, Random on tie, or Automatic.
+- Click Automatic to pick randomly now, repeat after ties, and start future duels automatically. Random on tie waits for your first manual card choice.
+- Disable all RPS controls and automatic picks from the Rock Paper Scissors section in settings.
 
 Replay controls are intentionally not modified in this release.
 

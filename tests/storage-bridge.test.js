@@ -135,4 +135,58 @@ storageChangeListener(
 assert.equal(postedMessages.at(-1).reason, "storage-change");
 assert.equal(postedMessages.at(-1).settings.hostDefaults.format, "eu");
 
+assert.equal(core.createDefaultSettings().autoPickRps, false);
+assert.equal(core.createDefaultSettings().rpsEnhancements, true);
+assert.equal(core.createDefaultSettings().autoStartRps, false);
+assert.equal(core.sanitizeSettings({ rpsEnhancements: false, autoStartRps: true }).rpsEnhancements, false);
+assert.equal(core.sanitizeSettings({ autoStartRps: true }).autoStartRps, true);
+assert.equal(core.sanitizeSettings({ autoStartRps: "true" }).autoStartRps, false);
+assert.equal(core.sanitizeSettings({}).rpsEnhancements, true, "existing installs keep RPS enhancements");
+assert.equal(core.sanitizeSettings({ autoPickRps: true }).autoPickRps, true);
+assert.equal(core.sanitizeSettings({ autoPickRps: "false" }).autoPickRps, false);
+storedSettings.autoStartRps = true;
+storedSettings.rpsEnhancements = false;
+for (const enabled of [true, false]) {
+  windowListeners.message({ data: {
+    channel: "dueling-book-enhancer-v1", source: "page-main",
+    type: "save-auto-pick-rps", enabled
+  } });
+  assert.equal(storedSettings.autoPickRps, enabled);
+  assert.equal(storedSettings.hostDefaults.format, "eu", "preserve other preferences");
+  // A reload requests stored settings through the bridge again.
+  windowListeners.message({ data: {
+    channel: "dueling-book-enhancer-v1", source: "page-main", type: "request-settings"
+  } });
+  assert.equal(postedMessages.at(-1).settings.autoPickRps, enabled);
+  assert.equal(postedMessages.at(-1).settings.autoStartRps, true);
+  assert.equal(postedMessages.at(-1).settings.rpsEnhancements, false);
+}
+
+for (const enabled of [true, false]) {
+  windowListeners.message({ data: {
+    channel: "dueling-book-enhancer-v1", source: "page-main",
+    type: "save-auto-start-rps", enabled
+  } });
+  assert.equal(storedSettings.autoStartRps, enabled);
+  assert.equal(storedSettings.autoPickRps, false, "saving auto first pick preserves repeat ties");
+  assert.equal(storedSettings.rpsEnhancements, false, "saving auto first pick preserves the master switch");
+}
+
+for (const [mode, first, repeat] of [["manual", false, false], ["repeat", false, true], ["automatic", true, true]]) {
+  windowListeners.message({ data: {
+    channel: "dueling-book-enhancer-v1", source: "page-main", type: "save-rps-mode", mode
+  } });
+  assert.equal(storedSettings.autoStartRps, first);
+  assert.equal(storedSettings.autoPickRps, repeat);
+  assert.equal(storedSettings.rpsEnhancements, false);
+  const restored = core.sanitizeSettings(storedSettings);
+  assert.equal(restored.autoStartRps, first);
+  assert.equal(restored.autoPickRps, repeat);
+}
+windowListeners.message({ data: {
+  channel: "dueling-book-enhancer-v1", source: "page-main", type: "save-rps-mode", mode: "invalid"
+} });
+assert.equal(storedSettings.autoStartRps, true, "ignore invalid modes");
+assert.equal(storedSettings.autoPickRps, true);
+
 console.log("Storage bridge test passed.");

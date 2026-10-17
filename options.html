@@ -30,6 +30,7 @@
           <a href="#rooms-heading">Visible Rooms</a>
           <a href="#host-heading">Host Defaults</a>
           <a href="#deck-heading">Deck Constructor</a>
+          <a href="#rps-heading">Rock Paper Scissors</a>
           <a href="#card-pools-heading">Card Pools</a>
           <a href="#sort-heading">Custom Sort</a>
           <a href="#colors-heading">Custom Colors</a>
@@ -80,6 +81,20 @@
           <div class="panel remember-card-list">
             <label class="preserve-control"><input id="remember-card-list" type="checkbox" aria-describedby="remember-card-pool-description"><strong>Remember Card Pool</strong></label>
             <p id="remember-card-pool-description" class="setting-description">While enabled, clicking the “Save Deck” button will remember which Card Pool was active. When you load this deck up in the future, that Card Pool will be automatically selected.</p>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-labelledby="rps-heading">
+          <div class="section-heading"><h2 id="rps-heading">Rock Paper Scissors</h2></div>
+          <div class="panel rps-settings">
+            <label class="preserve-control"><input id="rps-enhancements" type="checkbox"><strong>Enable RPS enhancements</strong></label>
+            <p class="setting-description">Show the automation modes during RPS. Turn this off to hide the controls and disable all automatic picks.</p>
+            <div role="radiogroup" aria-label="RPS automation mode">
+              <label class="check-control"><input id="rps-mode-manual" name="rps-mode" type="radio" value="manual"><span>Manual: choose each round yourself</span></label>
+              <label class="check-control"><input id="rps-mode-repeat" name="rps-mode" type="radio" value="repeat"><span>Random on tie: make the first pick, then choose randomly after ties</span></label>
+              <label class="check-control"><input id="rps-mode-automatic" name="rps-mode" type="radio" value="automatic"><span>Automatic: start each duel and repeat ties automatically</span></label>
+            </div>
+            <p class="setting-description">Modes are also available on the RPS screen. Clicking Automatic there makes a random pick immediately and saves the mode for future duels. Manual and Random on tie wait for your first card choice.</p>
           </div>
         </section>
 
