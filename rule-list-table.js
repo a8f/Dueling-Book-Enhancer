@@ -7,12 +7,13 @@
   function cardPage(rules, { search = "", page = 0, pageSize = 10 } = {}) {
     const cards = new Map();
     for (const rule of rules) {
-      if (!cards.has(rule.card.name)) cards.set(rule.card.name, { name: rule.card.name, rules: [] });
-      cards.get(rule.card.name).rules.push(rule);
+      const key = rule.card.passcode !== undefined ? "Passcode: " + rule.card.passcode : "DB ID: " + rule.card.id;
+      if (!cards.has(key)) cards.set(key, { ...rule.card, identifier: key, rules: [] });
+      cards.get(key).rules.push(rule);
     }
     const query = search.trim().toLowerCase();
     const filtered = [...cards.values()].filter(card =>
-      (card.name + " " + card.rules.map(rule => rule.label).join(" ")).toLowerCase().includes(query))
+      (card.name + " " + card.identifier + " " + card.rules.map(rule => rule.label).join(" ")).toLowerCase().includes(query))
       .sort((a, b) => a.name.localeCompare(b.name));
     const size = [10, 25, 50].includes(Number(pageSize)) ? Number(pageSize) : 10;
     const pages = Math.max(1, Math.ceil(filtered.length / size));
@@ -60,7 +61,7 @@
       const controls = element("div", undefined, "rules-card-controls");
       const search = element("input");
       search.type = "search";
-      search.placeholder = "Search cards or effects…";
+      search.placeholder = "Search names, passcodes or effects…";
       search.value = view.search;
       search.setAttribute("aria-label", "Search cards in " + list.name);
       const sizeLabel = element("label", "Rows ", "rules-page-size");
@@ -96,7 +97,7 @@
         body.replaceChildren();
         for (const card of result.cards) {
           const row = element("tr");
-          row.appendChild(element("td", card.name, "rules-card-name"));
+          row.appendChild(element("td", card.name + " (" + card.identifier + ")", "rules-card-name"));
           const labels = card.rules.map(rule => rule.label);
           const zones = [...new Set(card.rules.map(rule => rule.requires.sourceZone))];
           const phases = [...new Set(card.rules.flatMap(rule => rule.requires.phases))].map(phase => phaseNames[phase]);

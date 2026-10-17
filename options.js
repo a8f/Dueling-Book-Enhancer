@@ -1164,6 +1164,7 @@
         read: () => window.DBEnhancerRuleListDownload.fetchText(url),
         async apply(list, isCurrent) {
           if (!isCurrent()) return;
+          ruleCardValidation.check(list);
           const latest = readSettingsFromForm();
           latest.automationLists = window.DBEnhancerRuleListWatch.mergeList(latest.automationLists, list);
           const candidate = latest.automationLists.find(item => item.id === list.id);
@@ -1209,10 +1210,12 @@
     });
     ruleListTable.render(currentSettings.automationLists);
   }
+  const ruleCardValidation = window.DBEnhancerRuleCardValidation.create({ requestPermission: requestRulesPermission });
   document.getElementById("automation-list-json").addEventListener("input", () => {
     ruleImportGeneration++;
     pendingRuleImport = null;
     document.getElementById("automation-list-install").hidden = true;
+    document.getElementById("automation-list-status").textContent = "List changed. Preview or validate again.";
   });
   document.getElementById("automation-list-url").addEventListener("input", () => {
     ruleImportGeneration++;
@@ -1225,6 +1228,7 @@
     pendingRuleImport = null;
     try {
       const list = core.importAutomationList(document.getElementById("automation-list-json").value);
+      ruleCardValidation.check(list);
       const existing = currentSettings.automationLists.find(item => item.id === list.id);
       pendingRuleImport = list;
       document.getElementById("automation-list-status").textContent =
@@ -1236,6 +1240,25 @@
   document.getElementById("automation-list-preview").addEventListener("click", () => {
     ruleImportGeneration++;
     previewRuleImport();
+  });
+  document.getElementById("automation-list-validate").addEventListener("click", async event => {
+    const button = event.currentTarget;
+    const generation = ++ruleImportGeneration;
+    pendingRuleImport = null;
+    document.getElementById("automation-list-install").hidden = true;
+    button.disabled = true;
+    const status = document.getElementById("automation-list-status");
+    try {
+      const list = core.importAutomationList(document.getElementById("automation-list-json").value);
+      status.textContent = "Downloading card catalog to check passcodes and names…";
+      const result = await ruleCardValidation.downloadAndCheck(list);
+      if (generation !== ruleImportGeneration) return;
+      previewRuleImport();
+      status.textContent += " Checked " + result.checked + " card identifier(s). " +
+        (result.unknown.length ? "Unknown identifiers (names unverified): " + result.unknown.join(", ") + "." : "All identifiers and names match Duelingbook’s catalog.");
+    } catch (error) {
+      if (generation === ruleImportGeneration) status.textContent = "Validation failed: " + error.message;
+    } finally { button.disabled = false; }
   });
   document.getElementById("automation-list-file").addEventListener("change", async event => {
     const file = event.target.files[0];
@@ -1274,6 +1297,7 @@
   document.getElementById("automation-list-install").addEventListener("click", () => {
     if (!pendingRuleImport) return;
     try {
+      ruleCardValidation.check(pendingRuleImport);
       const latest = readSettingsFromForm();
       const others = latest.automationLists.filter(list => list.id !== pendingRuleImport.id);
       if (others.length >= 50) throw new Error("At most 50 rules lists can be installed.");

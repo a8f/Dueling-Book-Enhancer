@@ -104,8 +104,10 @@
                     <textarea id="automation-list-json" rows="6" maxlength="65536" spellcheck="false"></textarea>
                     <div class="rules-tool-buttons">
                       <button id="automation-list-preview" type="button" class="secondary-button">Preview</button>
+                      <button id="automation-list-validate" type="button" class="secondary-button">Validate passcodes and names</button>
                       <button id="automation-list-install" type="button" class="primary-button" hidden>Install disabled</button>
                     </div>
+                    <p class="setting-description">Validation optionally downloads Duelingbook’s card catalog for this check. The catalog is not bundled or saved.</p>
                     <p id="automation-list-status" class="rules-tool-status" role="status" aria-live="polite"></p>
                   </div>
                 </details>
@@ -199,6 +201,7 @@
     <script src="settings-client.js"></script>
     <script src="options-autosave.js"></script>
     <script src="rule-list-download.js"></script>
+    <script src="rule-card-validation.js"></script>
     <script src="rule-list-watch.js"></script>
     <script src="rule-list-table.js"></script>
     <script src="options.js"></script>

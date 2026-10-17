@@ -46,6 +46,13 @@ file. This sends the requested URL and ordinary network metadata to GitHub. No
 account credentials or duel/deck data are included. Lists are not downloaded or
 updated automatically, and file/string import requires no GitHub access.
 
+Choosing **Validate passcodes and names** requests optional access to
+`static.duelingbook.com` and downloads its public card catalog. The request
+includes no credentials, rules, or duel/deck data. The catalog is not bundled,
+saved, or downloaded automatically. Only identities checked by the user remain
+in settings-tab memory until that tab closes. Ordinary import and extension use
+do not require this download.
+
 Local rules development is an explicit, session-only option that requests access
 to `http://127.0.0.1/*`. While the settings tab remains open, it reads the selected
 JSON URL from a locally started development server and saves validated definitions

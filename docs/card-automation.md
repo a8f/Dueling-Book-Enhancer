@@ -10,7 +10,8 @@ a list repository. The optional submodule is not a build dependency.
 
 Settings shows one rule-set table with enabled state, unique card count, load
 formats and export controls. Select the rule-set name to expand its card table.
-Cards are grouped by name, searchable by name/effect, and paginated at 10, 25 or
+Cards are grouped by passcode (or fallback database ID), display name and passcode,
+are searchable by name/passcode/effect, and are paginated at 10, 25 or
 50 cards per page. The format column uses a checkbox dropdown; at least one
 format must remain selected. Card browsing does not change settings, and local
 file updates preserve expansion, search and pagination where possible.
@@ -28,10 +29,23 @@ same list ID; review replacements before installing. Keep an export of an old
 version if you want to restore it. Exports omit local enablement. There is no
 automatic polling, list discovery, update subscription or publisher verification.
 
-Imported schema-1 procedure references from the earlier prototype are unsupported.
-Reimport the independently maintained schema-2 JSON definition after updating.
+Schema-1 procedures and schema-2 name-only rules are unsupported.
+Update lists to schema 3 with a printed passcode in every source and resolution
+card selector, then reimport them. Names alone never match a card. Existing
+schema-3 database ID selectors also remain supported.
 Invalid persisted definitions cannot execute. No specific list is recreated
 automatically during settings sanitization or reset.
+
+**Validate passcodes and names** in the import panel optionally downloads Duelingbook's
+public catalog after requesting access to `static.duelingbook.com`. Validation
+checks both source and resolution selectors. Known passcode/name mismatches block
+import, including later previews in the same settings tab; unknown identifiers are shown
+as unverified and can still be imported, including custom cards. The catalog is
+not bundled, saved, downloaded at startup, or required to use the extension.
+Only the checked identities remain in memory until the settings tab closes.
+Permission denial or download failure does not install or replace a list and allows
+retrying or ordinary offline preview/import. The duel runtime also blocks known
+name mismatches before activation or summoning.
 
 ## Local development without publishing
 
@@ -71,19 +85,26 @@ Watching is session-only: it never starts automatically on browser/extension
 startup. No rules source, local URL or watcher configuration is published or
 bundled into the extension by this workflow.
 
-## List contract (schema 2)
+## List contract (schema 3)
 
 A list has `schemaVersion`, `id`, `name`, `version`, `formats` and `rules`. Each
 rule has:
 
-- `id`, `card: { name }`, and a human-readable `label`.
+- `id`, `card: { passcode, name }`, and a human-readable `label`. Passcodes are
+  eight-digit strings (the printed card password), preserving leading zeros:
+  `{ "passcode": "09411399", "name": "Destiny HERO - Malicious" }`.
+  A card without a printed passcode, such as a custom card, can instead use
+  `{ id, name }` with a positive Duelingbook database ID. Supply exactly one
+  identifier per selector. Names are display metadata; conflicting names for one
+  identifier within a list are rejected. No download is needed to match native
+  card metadata. Commands still use duel instance IDs to target individual copies.
 - `requires: { sourceZone, ownTurn, phases }`.
 - An `activation` array of native operation descriptors.
 - A `resolution` array with a card selector and permitted player choices.
 
 The first supported pipeline has one activation operation
 `{ op: "banish", card: "source" }` followed, on explicit resolution release,
-by one `{ op: "special-summon", from: "deck", card: { name }, positions }`
+by one `{ op: "special-summon", from: "deck", card: { passcode, name }, positions }`
 operation. These are reusable operations: source and summoned card identities
 may differ and are supplied entirely by the list. Currently the source zone
 must be `graveyard`, `ownTurn` must be true, and positions can be `ATK`, `DEF`,

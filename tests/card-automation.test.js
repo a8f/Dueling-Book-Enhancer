@@ -9,16 +9,16 @@ const { createRuntime } = require("../duel-events.js");
 const createFeature = require("../features/card-automation.js");
 const CARD = "Example Recruiter";
 function exampleList() {
-  return { schemaVersion: 2, id: "test.example", name: "Example list", version: "1.0.0", enabled: true,
-    formats: ["ar", "au"], rules: [{ id: "example-recruit", card: { name: CARD }, label: "Example summon effect",
+  return { schemaVersion: 3, id: "test.example", name: "Example list", version: "1.0.0", enabled: true,
+    formats: ["ar", "au"], rules: [{ id: "example-recruit", card: { passcode: "09000001", name: CARD }, label: "Example summon effect",
       requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
       activation: [{ op: "banish", card: "source" }],
-      resolution: [{ op: "special-summon", from: "deck", card: { name: CARD }, positions: ["ATK", "DEF"] }] }] };
+      resolution: [{ op: "special-summon", from: "deck", card: { passcode: "09000001", name: CARD }, positions: ["ATK", "DEF"] }] }] };
 }
 
-function card(instanceId, cardName = CARD) {
+function card(instanceId, cardName = CARD, databaseId = cardName === CARD ? 90000001 : 90000002) {
   const data = { id: instanceId, face_down: false,
-    cardfront: { data: key => ({ name: cardName, card_type: "Monster" })[key] } };
+    cardfront: { data: key => ({ id: databaseId, serial_number: databaseId - 81000000, name: cardName, card_type: "Monster" })[key] } };
   return { data(key, value) { if (arguments.length > 1) data[key] = value; return data[key]; } };
 }
 function harness() {
@@ -83,7 +83,7 @@ function harness() {
     runtime.release();
     echo("Stop viewing"); runtime.tick();
     assert.equal(commands.at(-1).play, "View deck");
-    echo("View deck", { viewing: "Deck", deck: [{ name: "Other monster", card_type: "Monster" }, { name: CARD, card_type: "Monster" }] });
+    echo("View deck", { viewing: "Deck", deck: [{ id: 90000002, serial_number: "09000002", name: "Other monster", card_type: "Monster" }, { id: 90000001, serial_number: 9000001, name: CARD, card_type: "Monster" }] });
     runtime.tick();
   }
   return { runtime, page, settings, source, target, self, opponent, commands, prepared, resolveToSummon, echo, flush,
@@ -123,6 +123,86 @@ test("only a matching local graveyard card in selected formats and a free zone i
   h.self.m1 = null;
   h.page.turn_player = h.opponent;
   assert.equal(h.runtime.eligible(h.source), false);
+});
+
+test("selectors require passcodes or database IDs, reject legacy rules and inconsistent names", () => {
+  for (const id of [undefined, 0, -1, "90000001", 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    const list = exampleList(); list.rules[0].card = { id, name: CARD };
+    assert.throws(() => core.validateAutomationList(list), /eight-digit passcode/);
+  }
+  const legacy = exampleList(); legacy.schemaVersion = 2;
+  assert.throws(() => core.validateAutomationList(legacy), /schema 3/);
+  assert.deepEqual(core.sanitizeSettings({ automationLists: [legacy] }).automationLists, []);
+  const conflicting = exampleList(); conflicting.rules[0].resolution[0].card.name = "Wrong name";
+  assert.throws(() => core.validateAutomationList(conflicting), /belongs to/);
+});
+
+test("passcodes preserve leading zeros and reject numeric, malformed or ambiguous selectors", () => {
+  for (const passcode of [undefined, null, 9000001, "9000001", "009000001", "00000000", "09abc001", " 09000001"]) {
+    const list = exampleList(); list.rules[0].card.passcode = passcode;
+    assert.throws(() => core.validateAutomationList(list), /eight-digit passcode/);
+  }
+  const ambiguous = exampleList(); ambiguous.rules[0].card.id = 90000001;
+  assert.throws(() => core.validateAutomationList(ambiguous));
+  assert.equal(core.importAutomationList(core.exportAutomationList(exampleList())).rules[0].card.passcode, "09000001");
+});
+
+test("passcode matching tolerates numeric native data and different database IDs; commands keep instance IDs", () => {
+  const h = harness();
+  h.source.data("cardfront", { data: key => ({ id: 111, passcode: 9000001, name: CARD })[key] });
+  h.target.data("cardfront", { data: key => ({ id: 222, serial_number: "09000001", name: CARD, card_type: "Monster" })[key] });
+  h.prepared(); h.resolveToSummon();
+  assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "SS DEF", card: 2, zone: "M-1" });
+  h.echo("SS DEF", { id: 2 }); h.runtime.tick();
+  assert.equal(h.commands.at(-1).play, "Stop viewing");
+});
+
+test("database ID selectors remain available for cards without passcodes", () => {
+  const h = harness();
+  h.settings.automationLists[0].rules[0].card = { id: 90000001, name: CARD };
+  h.settings.automationLists[0].rules[0].resolution[0].card = { id: 90000001, name: CARD };
+  for (const card of [h.source, h.target]) card.data("cardfront", { data: key => ({ id: 90000001, name: CARD })[key] });
+  h.prepared(); h.resolveToSummon();
+  assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "SS DEF", card: 2, zone: "M-1" });
+});
+
+test("same name with a different passcode cannot activate automation", () => {
+  const h = harness();
+  h.source.data("cardfront", { data: key => ({ id: 90000002, serial_number: "09000002", name: CARD })[key] });
+  assert.equal(h.runtime.available(h.source), false);
+  assert.equal(h.runtime.prepare(h.source), false);
+  assert.deepEqual(h.commands, []);
+});
+
+test("known source and catalog name mismatches block activation before paying cost", () => {
+  const h = harness();
+  h.settings.automationLists[0].rules[0].card.name = "Wrong name";
+  assert.equal(h.runtime.available(h.source), true);
+  assert.equal(h.runtime.eligible(h.source), false);
+  assert.equal(h.runtime.prepare(h.source), false);
+  assert.match(h.runtime.snapshot().message, /identifier and name/);
+  assert.deepEqual(h.commands, []);
+
+  const other = harness();
+  other.page.getCardByPasscode = id => ({ id, name: "Official name" });
+  assert.equal(other.runtime.prepare(other.source), false);
+  assert.match(other.runtime.snapshot().message, /Official name/);
+  assert.deepEqual(other.commands, []);
+});
+
+test("Deck resolution rejects same-name wrong passcodes and mismatched names for the selected passcode", () => {
+  for (const target of [
+    { id: 90000002, serial_number: "09000002", name: CARD, card_type: "Monster" },
+    { name: CARD, card_type: "Monster" },
+    { id: 90000001, serial_number: 9000001, name: "Wrong name", card_type: "Monster" }
+  ]) {
+    const h = harness(); h.prepared(); h.runtime.release();
+    h.echo("Stop viewing"); h.runtime.tick();
+    h.echo("View deck", { deck: [{ id: 90000002, serial_number: "09000002", name: "Other", card_type: "Monster" }, target] });
+    h.runtime.tick();
+    assert.equal(h.runtime.snapshot().state, "stopped");
+    assert.equal(h.commands.some(command => command.play.startsWith("SS ")), false);
+  }
 });
 
 for (const position of ["ATK", "DEF"]) test(`source card pays cost, waits for release, summons in ${position} and uses the native search shuffle`, () => {
@@ -197,9 +277,9 @@ test("card names, phase requirements and summon positions are supplied by the im
   const h = harness();
   const rule = h.settings.automationLists[0].rules[0];
   rule.requires.phases = ["SP"];
-  rule.resolution[0].card.name = "Example Result";
+  rule.resolution[0].card = { passcode: "09000003", name: "Example Result" };
   rule.resolution[0].positions = ["DEF"];
-  h.target.data("cardfront", { data: key => ({ name: "Example Result", card_type: "Monster" })[key] });
+  h.target.data("cardfront", { data: key => ({ id: 90000003, serial_number: "09000003", name: "Example Result", card_type: "Monster" })[key] });
   assert.equal(h.runtime.eligible(h.source), false);
   h.page.currentPhase = "SP";
   assert.equal(h.runtime.eligible(h.source), true);
@@ -210,7 +290,7 @@ test("card names, phase requirements and summon positions are supplied by the im
   h.echo("Declare", { id: 1 }); h.runtime.tick();
   h.echo("Banish", { id: 1 }); h.runtime.tick();
   h.runtime.release(); h.echo("Stop viewing"); h.runtime.tick();
-  h.echo("View deck", { deck: [{ name: CARD, card_type: "Monster" }, { name: "Example Result", card_type: "Monster" }] });
+  h.echo("View deck", { deck: [{ id: 90000001, serial_number: 9000001, name: CARD, card_type: "Monster" }, { id: 90000003, serial_number: "09000003", name: "Example Result", card_type: "Monster" }] });
   h.runtime.tick();
   assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "SS DEF", card: 2, zone: "M-1" });
 });
@@ -349,7 +429,7 @@ for (const position of ["ATK", "DEF"]) test(`one ${position} choice activates an
   h.echo("Banish", { id: 1 }); h.runtime.tick();
   assert.equal(h.commands.at(-1).play, "Stop viewing");
   h.echo("Stop viewing"); h.runtime.tick();
-  h.echo("View deck", { deck: [{ name: "Other", card_type: "Monster" }, { name: CARD, card_type: "Monster" }] }); h.runtime.tick();
+  h.echo("View deck", { deck: [{ id: 90000002, serial_number: "09000002", name: "Other", card_type: "Monster" }, { id: 90000001, serial_number: 9000001, name: CARD, card_type: "Monster" }] }); h.runtime.tick();
   assert.equal(h.commands.at(-1).play, "SS " + position);
   h.echo("SS " + position, { id: 2 }); h.runtime.tick();
   h.echo("Stop viewing"); h.echo("Shuffle deck"); h.runtime.tick();
@@ -391,6 +471,7 @@ test("captured Deck search protocol uses instance IDs, generic SS DEF and a serv
   assert.equal(typeof sequence[0].card, "number");
   assert.equal(sequence[1].viewing, "Deck");
   assert.equal(typeof sequence[1].deck[0].name, "string");
+  assert.match(sequence[1].deck[0].serial_number, /^\d{8}$/);
   assert.equal(typeof sequence[2].card, "number");
   assert.equal(sequence[4].play, "Stop viewing");
   assert.equal(sequence[6].play, "Shuffle deck");

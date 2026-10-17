@@ -14,6 +14,8 @@ test("runtime build uses only manifest dependencies, excluding optional repos an
   assert.ok(result.files.includes("rule-list-download.js"));
   assert.ok(result.files.includes("rule-list-watch.js"));
   assert.ok(result.files.includes("rule-list-table.js"));
+  assert.ok(result.files.includes("rule-card-validation.js"));
+  assert.ok(!result.files.includes("card-identities.js"), "card catalog must not be bundled");
   assert.ok(result.files.includes("settings-store.js"));
   assert.ok(!result.files.some(file => /^(personal-rules|rules|duelingbook|tests|docs|\.git)\//.test(file)));
   const core = await readFile(path.join(result.output, "enhancer-core.js"), "utf8");

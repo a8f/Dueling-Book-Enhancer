@@ -130,7 +130,7 @@ input[type="checkbox"] { accent-color:var(--accent-strong); height:18px; width:1
 .rules-input-action { display:flex; gap:8px; }
 .rules-input-action input { min-width:0; }
 .rules-input-action button { flex-shrink:0; }
-.rules-tool-buttons { display:flex; gap:8px; margin-top:12px; }
+.rules-tool-buttons { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
 .rules-tool-status:empty,.rules-watch-status:empty { display:none; }
 .rules-tool-status { margin:12px 0 0 !important; color:var(--muted); }
 .rules-watch-status { margin:0; padding:12px 24px; border-top:1px solid var(--border); color:var(--accent); font-size:.82rem; }

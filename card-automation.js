@@ -7,6 +7,17 @@
   const passive = new Set(["Good", "Stop good", "Thinking", "Typing", "Duel message", "Add watcher", "Remove watcher"]);
   const id = card => card && card.data("id");
   const name = card => card && card.data("cardfront") && card.data("cardfront").data("name");
+  function normalizePasscode(value) {
+    const text = typeof value === "number" && Number.isSafeInteger(value) ? String(value) : value;
+    return typeof text === "string" && /^\d{1,8}$/.test(text) && Number(text) > 0 ? text.padStart(8, "0") : null;
+  }
+  const matchesData = (selector, data) => selector.passcode !== undefined ?
+    [data.passcode, data.serial_number, data.alt_passcode].some(value => normalizePasscode(value) === selector.passcode) :
+    Number.isSafeInteger(selector.id) && selector.id > 0 && selector.id === data.id;
+  function matches(selector, card) {
+    const front = card && card.data("cardfront");
+    return Boolean(front && matchesData(selector, Object.fromEntries(["id", "passcode", "serial_number", "alt_passcode"].map(key => [key, front.data(key)]))));
+  }
 
   function create({ page, getSettings, changed = () => {}, now = () => page.performance.now() }) {
     let run = null;
@@ -21,13 +32,13 @@
     const zone = player => [1, 2, 3, 4, 5].find(index => !player["m" + index]);
     function matchingLists(card = run && run.source) {
       return (getSettings().automationLists || []).filter(list => list.enabled && list.formats.includes(page.duelFormat) &&
-        list.rules.some(rule => rule.card.name === name(card)));
+        list.rules.some(rule => matches(rule.card, card)));
     }
     function available(card) {
       const player = local();
       return Boolean(live() && player && !card?.data("face_down") &&
         player.grave_arr.includes(card) && card.data("owner") === player &&
-        (getSettings().automationLists || []).some(list => list.rules.some(rule => rule.card.name === name(card))));
+        (getSettings().automationLists || []).some(list => list.rules.some(rule => matches(rule.card, card))));
     }
     function activationProblem(card) {
       if (!available(card)) return "Select your own face-up graveyard card in a live manual duel.";
@@ -37,9 +48,11 @@
         return "No enabled matching rules list loads in this duel's format (" + format +
           "). Open extension settings → Automation → Card rules lists. Enable a matching list and select this format if you want to use it here.";
       }
-      const rules = lists.flatMap(list => list.rules.filter(rule => rule.card.name === name(card)));
+      const rules = lists.flatMap(list => list.rules.filter(rule => matches(rule.card, card)));
       if (rules.length > 1) return "Multiple enabled rules overlap for this card. Enable only one implementation in Automation settings.";
       const rule = rules[0];
+      const problem = identityProblem(rule, card);
+      if (problem) return problem;
       if (rule.requires.ownTurn && page.turn_player !== local()) return "This rule requires your own turn.";
       if (!rule.requires.phases.includes(page.currentPhase)) return "This rule requires phase " + rule.requires.phases.join(" or ") + ". Change phase, then open automation again.";
       if (!local().main_arr.length) return "Your Deck is empty. The rule requires a matching card in your Deck.";
@@ -51,11 +64,20 @@
     function eligible(card) {
       const player = local();
       const lists = matchingLists(card);
-      const rules = lists.flatMap(list => list.rules.filter(rule => rule.card.name === name(card)));
+      const rules = lists.flatMap(list => list.rules.filter(rule => matches(rule.card, card)));
       const rule = rules[0];
-      return Boolean(live() && player && rules.length === 1 &&
+      return Boolean(live() && player && rules.length === 1 && !identityProblem(rule, card) &&
         !card.data("face_down") && player.grave_arr.includes(card) && card.data("owner") === player &&
         player.main_arr.length && zone(player) && (!rule.requires.ownTurn || page.turn_player === player) && rule.requires.phases.includes(page.currentPhase));
+    }
+    function identityProblem(rule, source) {
+      if (name(source) !== rule.card.name) return "The source card identifier and name do not match the rule. Correct the rules list.";
+      for (const selector of [rule.card, rule.resolution[0].card]) {
+        const lookup = selector.passcode !== undefined ? page.getCardByPasscode : page.getCard;
+        const known = typeof lookup === "function" ? lookup.call(page, selector.passcode ?? selector.id) : null;
+        if (known && known.name && known.name !== selector.name) return "Card " + (selector.passcode ?? selector.id) + " belongs to " + known.name + ". Correct the rules list.";
+      }
+      return null;
     }
     function snapshot() {
       if (!run) return null;
@@ -106,10 +128,10 @@
     function prepare(card) {
       if ((run && !run.finished) || !available(card)) return false;
       const lists = matchingLists(card);
-      const list = lists[0] || getSettings().automationLists.find(list => list.rules.some(rule => rule.card.name === name(card)));
+      const list = lists[0] || getSettings().automationLists.find(list => list.rules.some(rule => matches(rule.card, card)));
       run = { state: "locking", message: "Preparing automation…", player: local(), username: page.username, socket: page.websocket,
         source: card, sourceId: id(card), duelId: page.duelId, turn: page.turnCount, phase: page.currentPhase,
-        list, rule: list.rules.find(rule => rule.card.name === name(card)),
+        list, rule: list.rules.find(rule => matches(rule.card, card)),
         listsKey: JSON.stringify(lists), costPaid: false, position: null, mode: "resolve", journal: [], since: now() };
       const problem = activationProblem(card);
       if (problem) { finish(problem, "unavailable"); return false; }
@@ -269,8 +291,12 @@
               run.deckInstances.some((card, index) => card !== run.player.main_arr[index])) {
             finish("Deck information changed or is unavailable. Finish the search manually."); return;
           }
-          const index = run.deckData.findIndex(card => card.name === run.rule.resolution[0].card.name && card.card_type === "Monster");
+          const selector = run.rule.resolution[0].card;
+          const index = run.deckData.findIndex(card => matchesData(selector, card) && card.card_type === "Monster");
           if (index < 0) { finish("No matching card found. Close the native Deck view and finish manually."); return; }
+          if (run.deckData[index].name !== selector.name) {
+            finish("The Deck card identifier and name do not match the rule. Correct the list and finish manually."); return;
+          }
           run.target = run.player.main_arr[index];
           const free = zone(run.player);
           if (!free) { finish("No free monster zone. Finish manually."); return; }
@@ -282,7 +308,7 @@
           break;
         }
         case "summoning":
-          if (run.player.main_arr.includes(run.target) || run.player[run.summonZone] !== run.target || name(run.target) !== run.rule.resolution[0].card.name ||
+          if (run.player.main_arr.includes(run.target) || run.player[run.summonZone] !== run.target || !matches(run.rule.resolution[0].card, run.target) ||
               !run.target.data("in" + run.position) || run.target.data("face_down")) return;
           run.journal.push("Special Summoned " + run.rule.resolution[0].card.name + " in " + run.position);
           stopViewing("close-deck");

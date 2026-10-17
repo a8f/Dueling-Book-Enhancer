@@ -9,11 +9,11 @@ const { create, mergeList } = require("../rule-list-watch.js");
 const { normalizeLocalUrl } = require("../rule-list-download.js");
 
 function fixture() {
-  return { schemaVersion: 2, id: "test.local", name: "Local example", version: "1.0.0", formats: ["au"],
-    rules: [{ id: "recruit", label: "Example effect", card: { name: "Example card" },
+  return { schemaVersion: 3, id: "test.local", name: "Local example", version: "1.0.0", formats: ["au"],
+    rules: [{ id: "recruit", label: "Example effect", card: { passcode: "09000001", name: "Example card" },
       requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1"] },
       activation: [{ op: "banish", card: "source" }],
-      resolution: [{ op: "special-summon", from: "deck", card: { name: "Example result" }, positions: ["DEF"] }] }] };
+      resolution: [{ op: "special-summon", from: "deck", card: { passcode: "09000002", name: "Example result" }, positions: ["DEF"] }] }] };
 }
 function harness() {
   let text = JSON.stringify(fixture()), next, writes = [], failWrite = false;

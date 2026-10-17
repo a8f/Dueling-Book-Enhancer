@@ -8,6 +8,7 @@
     "storage"
   ],
   "optional_host_permissions": [
+    "https://static.duelingbook.com/*",
     "https://raw.githubusercontent.com/*",
     "http://127.0.0.1/*"
   ],

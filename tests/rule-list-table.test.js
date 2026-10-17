@@ -4,12 +4,12 @@ const assert = require("node:assert/strict");
 const core = require("../enhancer-core.js");
 const { cardPage, create } = require("../rule-list-table.js");
 function fixture(count = 23) {
-  return { schemaVersion: 2, id: "test.table", name: "Example list", version: "1.0.0", enabled: true,
+  return { schemaVersion: 3, id: "test.table", name: "Example list", version: "1.0.0", enabled: true,
     formats: ["au"], rules: Array.from({ length: count }, (_, i) => ({ id: "card-" + i,
-      card: { name: "Card " + String(i + 1).padStart(2, "0") }, label: "Effect " + (i + 1),
+      card: { passcode: String(9000001 + i).padStart(8, "0"), name: "Card " + String(i + 1).padStart(2, "0") }, label: "Effect " + (i + 1),
       requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
       activation: [{ op: "banish", card: "source" }],
-      resolution: [{ op: "special-summon", from: "deck", card: { name: "Result" }, positions: ["ATK", "DEF"] }] })) };
+      resolution: [{ op: "special-summon", from: "deck", card: { id: 90000101, name: "Result" }, positions: ["ATK", "DEF"] }] })) };
 }
 function harness() {
   const nodes = [];
@@ -49,6 +49,9 @@ test("pagination groups unique cards, filters names/effects, sorts, and clamps s
   const last = cardPage(list.rules, { page: 99 });
   assert.equal(last.page, 2); assert.equal(last.cards.length, 3);
   assert.equal(cardPage(list.rules, { search: "another" }).cards[0].name, "Card 01");
+  assert.equal(cardPage(list.rules, { search: "09000023" }).cards[0].name, "Card 23");
+  const sameName = { ...list.rules[0], card: { id: 90000201, name: list.rules[0].card.name } };
+  assert.equal(cardPage([...list.rules, sameName]).all, 24);
   assert.equal(cardPage(list.rules, { pageSize: 25 }).cards.length, 23);
   const empty = cardPage(list.rules, { search: "no match", page: 4 });
   assert.equal(empty.page, 0); assert.equal(empty.start, 0); assert.equal(empty.pages, 1);
@@ -59,6 +62,7 @@ test("rule sets expand into paginated card tables without changing settings", ()
   const toggle = h.nodes().find(node => node.attrs["aria-controls"]);
   assert.equal(toggle.attrs["aria-expanded"], "false");
   toggle.click();
+  assert.ok(h.nodes().some(node => node.textContent === "Card 01 (Passcode: 09000001)"));
   assert.equal(toggle.attrs["aria-expanded"], "true");
   const next = h.nodes().find(node => node.attrs["aria-label"] === "Next card page for Example list");
   next.click();
