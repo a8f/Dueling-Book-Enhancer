@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Dueling Book Enhancer Millennium Eye</title>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0.25" y2="1">
+      <stop stop-color="#fff0a6"/>
+      <stop offset="0.48" stop-color="#f5c654"/>
+      <stop offset="1" stop-color="#c48a24"/>
+    </linearGradient>
+  </defs>
+  <!-- Dark edging keeps the gold legible on both light and dark toolbars. -->
+  <g fill="url(#gold)" stroke="#302016" stroke-width="4" stroke-linejoin="round">
+    <path d="M9 39 Q59 3 113 30 L119 42 Q60 19 9 49 Z"/>
+    <path d="M8 59 Q35 32 63 35 Q89 37 120 59 Q89 82 63 82 Q33 82 8 59 Z"/>
+    <path d="M32 77 L49 82 L40 115 L24 120 Z"/>
+    <path d="M72 81 C72 99 85 112 101 107 C114 103 116 88 105 83 C98 80 92 85 94 91 C95 95 100 96 103 93 C105 102 91 104 86 94 L83 78 Z"/>
+  </g>
+  <path d="M24 59 Q62 29 104 59 Q64 88 24 59 Z" fill="#302016"/>
+  <ellipse cx="64" cy="58" rx="17" ry="21" fill="url(#gold)"/>
+  <ellipse cx="64" cy="58" rx="8" ry="13" fill="#302016"/>
+</svg>
