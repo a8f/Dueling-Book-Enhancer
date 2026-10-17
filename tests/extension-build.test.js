@@ -8,17 +8,17 @@ const os = require("node:os");
 test("runtime build uses only manifest dependencies, excluding optional repos and captures", async () => {
   const { buildExtension } = await import("../scripts/build-extension.mjs");
   const root = await mkdtemp(path.join(os.tmpdir(), "dbx-build-test-"));
-  const result = await buildExtension(path.resolve(__dirname, ".."), root);
+  const result = await buildExtension(path.resolve(__dirname, "../extension"), root);
   assert.ok(result.files.includes("manifest.json"));
-  assert.ok(result.files.includes("card-automation.js"));
-  assert.ok(result.files.includes("rule-list-download.js"));
-  assert.ok(result.files.includes("rule-list-watch.js"));
-  assert.ok(result.files.includes("rule-list-table.js"));
-  assert.ok(result.files.includes("rule-card-validation.js"));
+  assert.ok(result.files.includes("shared/card-automation.js"));
+  assert.ok(result.files.includes("options/rule-list-download.js"));
+  assert.ok(result.files.includes("options/rule-list-watch.js"));
+  assert.ok(result.files.includes("options/rule-list-table.js"));
+  assert.ok(result.files.includes("options/rule-card-validation.js"));
   assert.ok(!result.files.includes("card-identities.js"), "card catalog must not be bundled");
-  assert.ok(result.files.includes("settings-store.js"));
+  assert.ok(result.files.includes("shared/settings-store.js"));
   assert.ok(!result.files.some(file => /^(card-rule-extractor|personal-rules|rules|duelingbook|tests|docs|\.git)\//.test(file)));
-  const core = await readFile(path.join(result.output, "enhancer-core.js"), "utf8");
+  const core = await readFile(path.join(result.output, "shared/enhancer-core.js"), "utf8");
   assert.match(core, /automationLists: \[\]/);
 });
 

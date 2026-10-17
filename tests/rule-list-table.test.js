@@ -1,8 +1,8 @@
 "use strict";
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const core = require("../enhancer-core.js");
-const { cardPage, create } = require("../rule-list-table.js");
+const core = require("../extension/shared/enhancer-core.js");
+const { cardPage, create } = require("../extension/options/rule-list-table.js");
 function fixture(count = 23) {
   return { schemaVersion: 3, id: "test.table", name: "Example list", version: "1.0.0", enabled: true,
     formats: ["au"], rules: Array.from({ length: count }, (_, i) => ({ id: "card-" + i,

@@ -2,9 +2,9 @@
 
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const core = require("../enhancer-core.js");
-const createCardPools = require("../features/card-pools.js");
-const { create: createLifecycle } = require("../lifecycle.js");
+const core = require("../extension/shared/enhancer-core.js");
+const createCardPools = require("../extension/page/features/card-pools.js");
+const { create: createLifecycle } = require("../extension/page/lifecycle.js");
 
 function setup() {
   const settings = core.createDefaultSettings();

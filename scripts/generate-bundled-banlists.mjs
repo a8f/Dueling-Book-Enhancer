@@ -10,7 +10,7 @@ const EXCLUDED_FORMATS = new Set([
   "Goat",
   "Traditional"
 ]);
-const OUTPUT_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "..", "bundled-banlists.js");
+const OUTPUT_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "..", "extension", "data", "bundled-banlists.js");
 
 function slugify(value) {
   return value

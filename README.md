@@ -1,6 +1,6 @@
 # Dueling Book Enhancer
 
-Version 1.1.5 is a local Chrome extension for customizing Dueling Book without replacing its native duel, matchmaking, or deck-saving workflows.
+Version 1.1.6 is a local Chrome extension for customizing Dueling Book without replacing its native duel, matchmaking, or deck-saving workflows.
 
 ## Features
 
@@ -40,7 +40,9 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 Replay controls are intentionally not modified in this release.
 
 For code structure, feature extension points and settings persistence, see
-[architecture](docs/architecture.md). Run regression checks with `node --test`.
+[architecture](docs/architecture.md). Run self-contained regression checks with
+`npm test`, or `npm run test:all` when local site references are available.
+See [testing](docs/testing.md) for requirements and fixture setup.
 
 An internal [duel event framework](docs/duel-events.md) supports future features
 that react to all incoming duel messages, including card activations, attacks,
@@ -60,18 +62,43 @@ after the extension is loaded.
 2. Open `chrome://extensions`.
 3. Enable **Developer mode**.
 4. Click **Load unpacked**.
-5. Select the unzipped `dueling-book-enhancer` folder.
-6. Click the extension's toolbar button to open settings. Clicking it again returns to the existing settings tab.
+5. Select the folder containing `manifest.json`: `extension/` in a repository checkout, or the unpacked extension folder in a release download.
+6. Click the extension's toolbar button for quick settings. Choose a section shortcut or **All settings** to open the full settings page; an existing settings tab is reused. Choose **Customize** in the popup to pin up to four controls. Pinning a control does not enable it. The full page has searchable section navigation.
 7. Settings save automatically as you edit them. Check for **All changes saved** before closing the settings tab. Dueling Book receives saved changes automatically.
 
 For later updates, replace the folder contents, then click **Reload** on the extension card in `chrome://extensions`.
 
+If you previously loaded the repository root, load `extension/` once after this
+reorganization. Changing the unpacked path can change the extension ID and give
+it separate settings. Record preferences you want to reapply before removing
+the old entry, and keep only one entry enabled while using the site.
+
 ## Run locally in Firefox
 
-From the repository root, run `npx.cmd web-ext run` on Windows (or
-`npx web-ext run` on other platforms). Firefox uses the manifest's ordered
+From the repository root, run `npx.cmd web-ext run --source-dir extension` on Windows (or
+`npx web-ext run --source-dir extension` on other platforms). Firefox uses the manifest's ordered
 background scripts; Chrome uses its background service worker. The shared
 manifest requires Chrome 121 or newer.
+
+## Repository layout
+
+- `extension/` is the complete installable extension, with no build step.
+  `page/features/` holds site behavior, `shared/` holds reusable logic and settings
+  helpers, and `background/`, `bridge/`, `options/`, and `popup/` hold their
+  respective entry points. `data/` holds generated banlists; `icons/` holds assets.
+- `tests/` holds self-contained checks; `tests/integration/` holds checks that
+  also use local native-site sources and network captures.
+- `scripts/` holds test and asset-generation tools; `docs/` explains the internals.
+- `duelingbook/` is ignored local reference material; `dist/` is ignored output.
+- `card-rule-extractor/` and `personal-rules/`, when present, are independent,
+  optional Git checkouts. They are ignored by this repository and managed and
+  tested separately. New checkouts can live beside this repository instead.
+
+Generate assets with `node scripts/generate-bundled-banlists.mjs` and
+`python scripts/generate-icons.py`; they write into `extension/data/` and
+`extension/icons/`. The icon generator documents its Python dependencies.
+For release packaging, archive the contents of `extension/` with `manifest.json`
+at the archive root. Exclude local references, tests and tools from the package.
 
 ## Custom banlist JSON
 

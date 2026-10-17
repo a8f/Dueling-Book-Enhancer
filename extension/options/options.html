@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dueling Book Enhancer Settings</title>
+    <link rel="icon" type="image/png" href="../icons/icon-32.png">
     <link rel="stylesheet" href="options.css">
   </head>
   <body>
     <header class="page-header">
       <div class="header-inner">
         <div>
-          <p class="eyebrow">Browser extension</p>
-          <h1>Dueling Book Enhancer</h1>
+          <p class="eyebrow">Dueling Book Enhancer</p>
+          <h1>Settings</h1>
         </div>
         <div class="appearance-controls" aria-label="Appearance">
           <button id="mode-toggle" type="button" class="mode-toggle">Light mode</button>
@@ -26,8 +27,13 @@
 
     <main>
       <form id="settings-form">
+        <button id="reload-settings" class="secondary-button" type="button" hidden>Retry loading settings</button>
         <fieldset id="settings-controls" disabled>
-        <nav class="toc settings-section" aria-label="Settings sections">
+        <aside class="settings-sidebar">
+        <label class="search-label" for="settings-search">Find a setting</label>
+        <input id="settings-search" type="search" placeholder="Try shuffle, password, color…" autocomplete="off" aria-controls="settings-navigation">
+        <p id="search-status" class="search-status" role="status" aria-live="polite" hidden></p>
+        <nav id="settings-navigation" class="toc" aria-label="Settings sections">
           <a href="#rooms-heading">Visible Rooms</a>
           <a href="#host-heading">Host Defaults</a>
           <a href="#deck-heading">Deck Constructor</a>
@@ -36,9 +42,14 @@
           <a href="#sort-heading">Custom Sort</a>
           <a href="#colors-heading">Custom Colors</a>
         </nav>
+        <details class="reset-area"><summary>Reset settings</summary><p>Restore all defaults and clear remembered deck pools. This cannot be undone.</p><button id="reset-settings" class="secondary-button" type="button">Reset everything</button></details>
+        </aside>
+        <div class="settings-content">
+        <p id="search-empty" class="panel empty-state" hidden>No matching settings. Try a different word or clear the search.</p>
 
         <section class="settings-section" aria-labelledby="rooms-heading">
           <div class="section-heading"><h2 id="rooms-heading">Visible Rooms</h2></div>
+          <p class="section-description">Choose which rooms appear in the lobby. Drag to reorder, or use the arrows. The eye button shows or hides a room.</p>
           <fieldset class="panel room-panel">
             <legend class="sr-only">Rooms to display</legend>
             <div id="rooms-grid" class="vertical-card-list"></div>
@@ -47,6 +58,7 @@
 
         <section class="settings-section" aria-labelledby="host-heading">
           <div class="section-heading"><h2 id="host-heading">Host a Duel Defaults</h2></div>
+          <p class="section-description">Choose the starting values for Host a Duel. Enable Reuse last hosted duel setup to update these defaults after you host.</p>
           <div class="panel host-grid">
             <label><span>Format</span><select id="host-format"></select></label>
             <label><span>Type</span><select id="host-type"></select></label>
@@ -73,20 +85,23 @@
                 <svg class="eye-closed" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 4.5 21 19.5M5.2 7.1C3.5 8.5 2.5 10.3 2.5 12c0 0 3.5 6 9.5 6 1.4 0 2.6-.3 3.7-.7M9.7 6.3A10 10 0 0 1 12 6c6 0 9.5 6 9.5 6a11 11 0 0 1-2.2 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
               </button>
             </span></label>
-            <label class="preserve-control full-field"><input id="preserve-last-used" type="checkbox"><strong>Preserve Last Used</strong></label>
+            <label class="preserve-control full-field"><input id="preserve-last-used" type="checkbox" aria-describedby="reuse-host-description"><strong>Reuse last hosted duel setup</strong></label>
+            <p id="reuse-host-description" class="setting-description full-field">When on, your most recently hosted duel setup becomes the default for the next time you host. When off, hosting does not update these defaults.</p>
           </div>
         </section>
 
         <section class="settings-section" aria-labelledby="deck-heading">
           <div class="section-heading"><h2 id="deck-heading">Deck Constructor</h2></div>
+          <p class="section-description">Control whether loading a deck also restores its card search filter.</p>
           <div class="panel remember-card-list">
-            <label class="preserve-control"><input id="remember-card-list" type="checkbox" aria-describedby="remember-card-pool-description"><strong>Remember Card Pool</strong></label>
-            <p id="remember-card-pool-description" class="setting-description">While enabled, clicking the “Save Deck” button will remember which Card Pool was active. When you load this deck up in the future, that Card Pool will be automatically selected.</p>
+            <label class="preserve-control"><input id="remember-card-list" type="checkbox" aria-describedby="remember-card-pool-description"><strong>Remember each deck's card filter</strong></label>
+            <p id="remember-card-pool-description" class="setting-description">Card Pool is the filter in Deck Constructor that limits which cards appear in searches, such as Edison or Goat. When on, saving a deck remembers its selected filter and loading that deck restores it. When off, saving does not remember a filter and loading does not restore one. Existing saved filters are kept. Your deck contents are unchanged.</p>
           </div>
         </section>
 
         <section class="settings-section" aria-labelledby="automation-heading">
           <div class="section-heading"><h2 id="automation-heading">Automation</h2></div>
+          <p class="section-description">Choose what the enhancer handles during a duel. Automatic actions are optional; review each behavior before enabling it.</p>
           <div class="panel rules-panel">
             <div class="rules-toolbar">
               <div><h3>Card rule sets</h3><p>Choose formats. Expand a set to browse its cards.</p></div>
@@ -136,32 +151,32 @@
           <div class="panel rps-settings">
             <h3>Hand shuffle</h3>
             <label class="preserve-control"><input id="auto-shuffle-hand" type="checkbox" aria-describedby="hand-shuffle-description"><strong>Shuffle hand after drawing for turn</strong></label>
-            <p id="hand-shuffle-description" class="setting-description">Automatically shuffle your hand after your first draw in your own Draw Phase, once per turn.</p>
-            <label class="preserve-control"><input id="auto-shuffle-after-draw" type="checkbox" aria-describedby="delayed-shuffle-description"><strong>Shuffle hand after finishing draws</strong></label>
-            <p id="delayed-shuffle-description" class="setting-description">Wait briefly after your last draw and until your pointer moves away from the deck and draw menu. Further draws restart the wait. Manually shuffling, changing your hand, leaving the tab, or waiting over 20 seconds cancels it. When both options are enabled, this delayed behavior takes priority.</p>
-            <label for="hand-shuffle-aggressiveness"><strong>Shuffle aggressiveness</strong> — cautious to fast</label>
+            <p id="hand-shuffle-description" class="setting-description">When on, shuffle your hand after the first draw in your own Draw Phase, once per turn. When off, this turn-draw shuffle is disabled. The separate setting below can still shuffle after draws.</p>
+            <label class="preserve-control"><input id="auto-shuffle-after-draw" type="checkbox" aria-describedby="delayed-shuffle-description"><strong>Shuffle after finishing draws</strong></label>
+            <p id="delayed-shuffle-description" class="setting-description">When on, wait until you stop drawing and move your pointer away from the deck and draw menu, then shuffle your hand. Works on either player's turn. More draws restart the wait. Manually shuffling, changing your hand, leaving the tab, or waiting over 20 seconds cancels the pending shuffle. This takes priority over turn-draw shuffling. When off, only the separate turn-draw setting above can shuffle automatically.</p>
+            <label for="hand-shuffle-aggressiveness"><strong>Shuffle speed</strong> — slower to faster (used with the setting above)</label>
             <input id="hand-shuffle-aggressiveness" type="range" min="0" max="100" step="1" value="80" aria-describedby="hand-shuffle-timing">
             <output id="hand-shuffle-timing" for="hand-shuffle-aggressiveness" class="setting-description"></output>
           </div>
           <div class="panel rps-settings">
             <h3>Spell and trap costs</h3>
-            <label class="preserve-control"><input id="auto-pay-activation-costs" type="checkbox" aria-describedby="activation-cost-description"><strong>Automatically pay activation LP costs</strong></label>
-            <p id="activation-cost-description" class="setting-description">Pay clear fixed or half-LP costs when you activate your own Spell or Trap. Supports modern text and simple older wording used in Edison. Skips ambiguous effects, effect choices, upkeep, monster effects, and Apply effect actions. Other costs remain manual. Payment is immediate; do not also subtract it manually. Use the normal LP controls to correct a payment.</p>
+            <label class="preserve-control"><input id="auto-pay-activation-costs" type="checkbox" aria-describedby="activation-cost-description"><strong>Pay Spell/Trap activation LP costs automatically</strong></label>
+            <p id="activation-cost-description" class="setting-description">When on, immediately subtract a clear fixed or half-LP activation cost for your own Spell or Trap, without a confirmation. Do not subtract that cost again manually. Ambiguous costs, effect choices, upkeep, monster effects, and Apply effect actions remain manual. Use the normal LP controls to correct a payment. When off, pay all LP costs yourself.</p>
           </div>
           <div class="panel rps-settings">
             <h3>Battle damage</h3>
-            <label class="preserve-control"><input id="battle-damage-confirmation" type="checkbox"><strong>Suggest battle damage</strong></label>
-            <p class="setting-description">Show a confirmation for battle damage you owe, including Honest and Kalut adjustments. LP changes only after you confirm.</p>
+            <label class="preserve-control"><input id="battle-damage-confirmation" type="checkbox" aria-describedby="battle-damage-description"><strong>Battle damage prompts</strong></label>
+            <p id="battle-damage-description" class="setting-description">When on, calculate battle damage you owe and show a prompt, including Honest and Kalut adjustments. Your LP changes only if you confirm. When off, this feature shows no prompts and makes no LP adjustments; calculate and apply battle damage yourself.</p>
           </div>
           <div class="panel rps-settings">
             <h3>Turn order</h3>
-            <label class="preserve-control"><input id="auto-go-first" type="checkbox"><strong>Automatically choose to go first</strong></label>
-            <p class="setting-description">Choose First whenever Dueling Book lets you select the turn order, including after siding.</p>
+            <label class="preserve-control"><input id="auto-go-first" type="checkbox"><strong>Automatically choose First</strong></label>
+            <p class="setting-description">When on, choose First whenever Dueling Book gives you the turn-order choice, including after siding. Enabling this while the choice is visible chooses First immediately. When off, choose First or Second yourself.</p>
           </div>
           <div class="panel rps-settings">
             <h3 id="rps-heading">Rock Paper Scissors</h3>
-            <label class="preserve-control"><input id="rps-enhancements" type="checkbox"><strong>Enable RPS enhancements</strong></label>
-            <p class="setting-description">Show the automation modes during RPS. Turn this off to hide the controls and disable all automatic picks.</p>
+            <label class="preserve-control"><input id="rps-enhancements" type="checkbox"><strong>Rock Paper Scissors controls</strong></label>
+            <p class="setting-description">When on, show the mode controls on the Rock Paper Scissors screen and use the mode selected below. When off, hide those controls and disable all automatic picks; choose each round yourself.</p>
             <div role="radiogroup" aria-label="RPS automation mode">
               <label class="check-control"><input id="rps-mode-manual" name="rps-mode" type="radio" value="manual"><span>Manual: choose each round yourself</span></label>
               <label class="check-control"><input id="rps-mode-repeat" name="rps-mode" type="radio" value="repeat"><span>Random on tie: make the first pick, then choose randomly after ties</span></label>
@@ -176,6 +191,7 @@
             <h2 id="card-pools-heading">Card Pools</h2>
             <label class="file-button"><span>Import JSON</span><input id="custom-banlist-file" type="file" accept="application/json,.json" multiple></label>
           </div>
+          <p class="section-description">Choose the Card Pools available in Deck Constructor. Drag or use the arrows to reorder; use the eye to show or hide a pool.</p>
           <div class="panel card-pool-panel">
             <div id="card-pool-list" class="vertical-card-list"></div>
           </div>
@@ -183,32 +199,36 @@
 
         <section class="settings-section" aria-labelledby="sort-heading">
           <div class="section-heading"><h2 id="sort-heading">Custom Sort</h2></div>
+          <p class="section-description">Set the priority of Custom Sort rules. Higher rules take priority; uncheck a rule to skip it.</p>
           <div id="sort-categories" class="sort-categories"></div>
         </section>
 
         <section class="settings-section" aria-labelledby="colors-heading">
           <div class="section-heading"><h2 id="colors-heading">Custom Colors</h2></div>
-          <label class="preserve-control panel grid-lines-control"><input id="show-grid-lines" type="checkbox"><strong>Show Background Grid Lines</strong></label>
+          <p class="section-description">Customize Dueling Book's colors and backgrounds. Each Reset button restores that color's default.</p>
+          <label class="preserve-control panel grid-lines-control"><input id="show-grid-lines" type="checkbox"><strong>Background grid lines</strong></label>
+          <p class="section-description">Grid lines: on shows the grid over Dueling Book's background; off hides it.</p>
           <div id="color-groups" class="color-groups"></div>
         </section>
 
+        </div>
         <div class="save-bar">
-          <button id="reset-settings" class="secondary-button" type="button">Reset everything</button>
           <div class="save-actions"><span class="autosave-hint">Changes save automatically</span><span id="save-status" role="status" aria-live="polite">Loading settings...</span><button id="retry-save" class="primary-button" type="submit" hidden>Retry save</button></div>
         </div>
         </fieldset>
       </form>
     </main>
 
-    <script src="bundled-banlists.js"></script>
-    <script src="enhancer-core.js"></script>
-    <script src="settings-store.js"></script>
-    <script src="settings-client.js"></script>
+    <script src="../data/bundled-banlists.js"></script>
+    <script src="../shared/enhancer-core.js"></script>
+    <script src="../shared/settings-store.js"></script>
+    <script src="../shared/settings-client.js"></script>
     <script src="options-autosave.js"></script>
     <script src="rule-list-download.js"></script>
     <script src="rule-card-validation.js"></script>
     <script src="rule-list-watch.js"></script>
     <script src="rule-list-table.js"></script>
     <script src="options.js"></script>
+    <script src="settings-navigation.js"></script>
   </body>
 </html>

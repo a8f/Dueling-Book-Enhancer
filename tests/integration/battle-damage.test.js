@@ -3,9 +3,9 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
-const { calculate, createCalculator, createEffectTracker } = require("../battle-damage.js");
-const createFeature = require("../features/battle-damage.js");
-const { createRuntime } = require("../duel-events.js");
+const { calculate, createCalculator, createEffectTracker } = require("../../extension/shared/battle-damage.js");
+const createFeature = require("../../extension/page/features/battle-damage.js");
+const { createRuntime } = require("../../extension/page/duel-events.js");
 
 test("battle calculation covers attack, defense, direct, ties and unknown stats", () => {
   const battle = (atk, target) => calculate({ attacker: { atk }, target }).damage;
@@ -114,7 +114,7 @@ function acknowledge(h, amount, life) {
 }
 
 function useNativeQueue(h) {
-  const source = fs.readFileSync(require.resolve("../duelingbook/duel.js"), "utf8");
+  const source = fs.readFileSync(require.resolve("../../duelingbook/duel.js"), "utf8");
   Object.assign(h.page, { actionsQueue: [], performNextAction() {}, duel_logs: [],
     asArray: value => Array.isArray(value) ? value : [value], updateDuelLog() {} });
   vm.createContext(h.page);
@@ -125,7 +125,7 @@ function useNativeQueue(h) {
 }
 
 test("captured To GY hand discard shape passes through the native queued dispatcher for both cards", () => {
-  const har = JSON.parse(fs.readFileSync(require.resolve("../duelingbook/network-captures/first_real_game.har"), "utf8"));
+  const har = JSON.parse(fs.readFileSync(require.resolve("../../duelingbook/network-captures/first_real_game.har"), "utf8"));
   const captured = har.log.entries.flatMap(entry => entry._webSocketMessages || [])
     .filter(frame => frame.type === "receive").map(frame => { try { return JSON.parse(frame.data); } catch { return {}; } })
     .find(message => message.play === "To GY" && /from hand/.test(message.log && message.log.public_log));

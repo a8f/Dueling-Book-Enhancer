@@ -4,9 +4,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 const { test } = require("node:test");
-const core = require("../enhancer-core.js");
-const { createRuntime } = require("../duel-events.js");
-const createFeature = require("../features/hand-shuffle.js");
+const core = require("../../extension/shared/enhancer-core.js");
+const { createRuntime } = require("../../extension/page/duel-events.js");
+const createFeature = require("../../extension/page/features/hand-shuffle.js");
 
 function harness(enabled = true) {
   const self = { username: "Local", hand_arr: [1, 2, 3, 4, 5] };
@@ -36,9 +36,9 @@ function harness(enabled = true) {
   };
   // Exercise the native shuffle command and queued draw dispatcher.
   vm.createContext(page);
-  const main = fs.readFileSync(require.resolve("../duelingbook/main.js"), "utf8");
+  const main = fs.readFileSync(require.resolve("../../duelingbook/main.js"), "utf8");
   vm.runInContext(main.slice(main.indexOf("function shuffleHandE("), main.indexOf("function enterDPE(")), page);
-  const duel = fs.readFileSync(require.resolve("../duelingbook/duel.js"), "utf8");
+  const duel = fs.readFileSync(require.resolve("../../duelingbook/duel.js"), "utf8");
   vm.runInContext(duel.slice(duel.indexOf("function duelResponse2("), duel.indexOf("function beginNextDuel(")), page);
   page.DBEnhancerDuelEvents = createRuntime(page);
   const feature = createFeature({ window: page, document, core, now: () => time, getSettings: () => settings });

@@ -1,7 +1,7 @@
 "use strict";
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { create } = require("../rule-card-validation.js");
+const { create } = require("../extension/options/rule-card-validation.js");
 const list = (name = "Known card", id = 123) => ({ rules: [{ card: { id, name }, resolution: [{ card: { id: 456, name: "Result" } }] }] });
 
 test("choice rules validate branch prohibitions without requiring a fixed result card", () => {

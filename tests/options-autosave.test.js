@@ -1,9 +1,9 @@
 "use strict";
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const core = require("../enhancer-core.js");
-const store = require("../settings-store.js");
-const { create } = require("../options-autosave.js");
+const core = require("../extension/shared/enhancer-core.js");
+const store = require("../extension/shared/settings-store.js");
+const { create } = require("../extension/options/options-autosave.js");
 
 function harness() {
   let form = core.createDefaultSettings();

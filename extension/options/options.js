@@ -432,9 +432,10 @@
     });
 
     groups.forEach(function buildGroup(definitions, groupName) {
-      const section = document.createElement("section");
+      const section = document.createElement("details");
       section.className = "color-group panel";
-      const heading = document.createElement("h3");
+      section.open = groups.keys().next().value === groupName;
+      const heading = document.createElement("summary");
       heading.textContent = groupName;
       const list = document.createElement("div");
       list.className = "color-list";
@@ -939,6 +940,7 @@
     document.getElementById("auto-shuffle-after-draw").checked = currentSettings.autoShuffleAfterDraw;
     document.getElementById("hand-shuffle-aggressiveness").value = currentSettings.handShuffleAggressiveness;
     renderShuffleTiming();
+    updateShuffleSettingsAvailability();
     const rpsMode = currentSettings.autoStartRps ? "automatic" : currentSettings.autoPickRps ? "repeat" : "manual";
     ["manual", "repeat", "automatic"].forEach(mode => {
       document.getElementById("rps-mode-" + mode).checked = mode === rpsMode;
@@ -1050,6 +1052,11 @@
   }
 
   buildRooms();
+  // Use the same names in the full page and the customizable popup.
+  core.QUICK_SETTING_DEFINITIONS.forEach(definition => {
+    const label = document.getElementById(definition.control).closest("label");
+    label.querySelector("strong").textContent = definition.label;
+  });
   fillSelect(document.getElementById("host-format"), core.HOST_FORMAT_OPTIONS);
   fillSelect(document.getElementById("host-type"), core.HOST_TYPE_OPTIONS);
   fillSelect(document.getElementById("host-rules"), core.HOST_RULE_OPTIONS);
@@ -1335,7 +1342,11 @@
     document.getElementById("settings-controls").disabled = false;
     document.querySelectorAll(".appearance-controls button").forEach(button => { button.disabled = false; });
     showSavedStatus("All changes saved", "saved");
-  }).catch(error => showSavedStatus("Load failed: " + error.message, "load-error"));
+  }).catch(error => {
+    showSavedStatus("Load failed: " + error.message, "load-error");
+    document.getElementById("reload-settings").hidden = false;
+  });
+  document.getElementById("reload-settings").addEventListener("click", () => window.location.reload());
 
   function renderShuffleTiming() {
     const slider = document.getElementById("hand-shuffle-aggressiveness");
@@ -1345,13 +1356,17 @@
     slider.setAttribute("aria-valuetext", text);
   }
   document.getElementById("hand-shuffle-aggressiveness").addEventListener("input", renderShuffleTiming);
+  function updateShuffleSettingsAvailability() {
+    document.getElementById("hand-shuffle-aggressiveness").disabled = !document.getElementById("auto-shuffle-after-draw").checked;
+  }
+  document.getElementById("auto-shuffle-after-draw").addEventListener("change", updateShuffleSettingsAvailability);
 
   form.addEventListener("submit", function saveSettings(event) {
     event.preventDefault();
     saveChanges();
   });
   ["input", "change"].forEach(type => form.addEventListener(type, event => {
-    if (event.target.type !== "file" && !event.target.closest(".rules-card-browser")) saveChanges();
+    if (event.target.type !== "file" && event.target.id !== "settings-search" && !event.target.closest(".rules-card-browser")) saveChanges();
   }));
   form.addEventListener("click", event => {
     if (event.target.closest(".visibility-button, .card-move-button, .move-button, .room-move-button, .type-chip-controls button, .color-reset, .delete-button")) saveChanges();
@@ -1364,7 +1379,7 @@
   document.getElementById("reset-settings").addEventListener("click", function reset() {
     if (!autosave || autosave.saving) return;
     const confirmed = window.confirm(
-      "Reset rooms, host defaults, automation, Card Pools, Custom Sort, colors, and appearance?"
+      "Reset rooms, host defaults, automation, Card Pools, Custom Sort, colors, appearance, and popup shortcuts?"
     );
     if (!confirmed) return;
     stopLocalWatch("Local development stopped by settings reset.");

@@ -1,9 +1,9 @@
 "use strict";
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const createDebug = require("../features/debugging.js");
-const createShuffle = require("../features/hand-shuffle.js");
-const { createRuntime } = require("../duel-events.js");
+const createDebug = require("../extension/page/features/debugging.js");
+const createShuffle = require("../extension/page/features/hand-shuffle.js");
+const { createRuntime } = require("../extension/page/duel-events.js");
 
 function setup() {
   const listeners = {}, timers = [], downloads = [], elements = [];

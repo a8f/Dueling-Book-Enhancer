@@ -2,8 +2,8 @@
 
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const core = require("../enhancer-core.js");
-const { create, changes, applyChanges } = require("../settings-store.js");
+const core = require("../extension/shared/enhancer-core.js");
+const { create, changes, applyChanges } = require("../extension/shared/settings-store.js");
 
 test("preference patches preserve disjoint nested edits, removals and runtime mappings", async () => {
   let stored = core.createDefaultSettings();

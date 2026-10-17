@@ -2,10 +2,10 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const core = require("../enhancer-core.js");
-const { create } = require("../card-automation.js");
-const { createRuntime } = require("../duel-events.js");
-const createFeature = require("../features/card-automation.js");
+const core = require("../extension/shared/enhancer-core.js");
+const { create } = require("../extension/shared/card-automation.js");
+const { createRuntime } = require("../extension/page/duel-events.js");
+const createFeature = require("../extension/page/features/card-automation.js");
 
 function definition() {
   return { schemaVersion: 3, id: "test.trigger", name: "Trigger list", version: "1.0.0", formats: ["eu", "so"], enabled: true,
@@ -181,12 +181,6 @@ test("reset, hidden tab, settings, phase, socket, timeout, denied lock and manua
   const h = harness(); h.denyLock(); h.runtime.prepare(h.source); h.runtime.begin("search"); assert.equal(h.commands.length, 0);
 });
 
-test("native toHand implementation reveals Deck cards, and field menus restrict opponent movement", () => {
-  const native = fs.readFileSync(require.resolve("../duelingbook/duel.js"), "utf8");
-  assert.match(native.slice(native.indexOf("function toHand("), native.indexOf("function toHandFromField(")), /removeFromDeck[\s\S]*revealAndToHand/);
-  assert.match(native.slice(native.indexOf("function cardMenuE()"), native.indexOf("function cardMenuE2(")), /You don't control this card/);
-});
-
 test("native menu declares immediately, offers editable effects during the wait, and has no timing or activation controls", () => {
   const h = harness(), nodes = []; let shadow;
   function element(tag) {
@@ -198,7 +192,7 @@ test("native menu declares immediately, offers editable effects during the wait,
     nodes.push(node); return node;
   }
   const document = { createElement: element, documentElement: element("html"), addEventListener() {}, activeElement: null };
-  h.page.DBEnhancerCardAutomation = require("../card-automation.js"); h.page.showMenu = () => {}; h.page.cardMenuClicked = () => {};
+  h.page.DBEnhancerCardAutomation = require("../extension/shared/card-automation.js"); h.page.showMenu = () => {}; h.page.cardMenuClicked = () => {};
   const feature = createFeature({ window: h.page, document, getSettings: () => h.settings }); feature.initialize();
   h.page.cardMenuClicked(h.source, "DBX:card-automation", {});
   const latest = text => nodes.filter(node => node.textContent === text).at(-1);

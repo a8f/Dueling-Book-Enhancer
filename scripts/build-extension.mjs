@@ -7,7 +7,7 @@ const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".
 // Copy the manifest's runtime dependency graph, never the whole working tree.
 // Optional repositories, reference captures, tests and credentials cannot enter
 // a distribution merely because they exist beside the extension source.
-export async function buildExtension(source = repository, outputRoot = path.join(repository, "dist")) {
+export async function buildExtension(source = path.join(repository, "extension"), outputRoot = path.join(repository, "dist")) {
   const manifest = JSON.parse(await readFile(path.join(source, "manifest.json"), "utf8"));
   const pending = ["manifest.json", manifest.options_ui?.page, manifest.action?.default_popup,
     manifest.background?.service_worker, ...(manifest.background?.scripts || []),

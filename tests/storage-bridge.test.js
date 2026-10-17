@@ -27,14 +27,14 @@ function harness(environment = "worker") {
     onChanged: { addListener: callback => storageListeners.push(callback) }
   } };
   const worker = vm.createContext({ chrome, console });
-  const load = path => vm.runInContext(fs.readFileSync(require.resolve("../" + path), "utf8"), worker);
-  const background = require("../manifest.json").background;
+  const load = path => vm.runInContext(fs.readFileSync(require.resolve("../extension/" + path), "utf8"), worker);
+  const background = require("../extension/manifest.json").background;
   if (environment === "event-page") {
     // Firefox's background page has window and no worker importScripts API.
     worker.window = worker;
     background.scripts.forEach(load);
   } else {
-    worker.importScripts = (...paths) => paths.forEach(load);
+    worker.importScripts = (...paths) => paths.forEach(path => load(require("node:path").posix.join("background", path)));
     load(background.service_worker);
   }
   function client(url) {
@@ -42,7 +42,7 @@ function harness(environment = "worker") {
       sendMessage(message, respond) { receive(message, { id: runtime.id, url }, respond); }
     } };
     const page = vm.createContext({ window: {}, chrome: clientChrome });
-    vm.runInContext(fs.readFileSync(require.resolve("../settings-client.js"), "utf8"), page);
+    vm.runInContext(fs.readFileSync(require.resolve("../extension/shared/settings-client.js"), "utf8"), page);
     return { api: page.window.DBEnhancerSettingsClient, chrome: clientChrome };
   }
   return { client, read: () => structuredClone(stored) };
@@ -51,11 +51,11 @@ function harness(environment = "worker") {
 test("worker serializes commands from multiple tabs and merges stale options changes", async () => {
   const h = harness();
   const site = h.client("https://www.duelingbook.com/").api;
-  const options = h.client("chrome-extension://extension-test/options.html").api;
+  const options = h.client("chrome-extension://extension-test/options/options.html").api;
   const snapshot = await options.execute({ type: "get-settings" });
   const edited = structuredClone(snapshot);
   edited.showGridLines = false;
-  const { changes } = require("../settings-store.js");
+  const { changes } = require("../extension/shared/settings-store.js");
   await Promise.all([
     site.execute({ type: "save-rps-mode", mode: "automatic" }),
     site.execute({ type: "save-deck-cardpool", deckId: 42, cardpool: { kind: "native", value: "tcg" } }),
@@ -73,7 +73,7 @@ test("worker serializes commands from multiple tabs and merges stale options cha
 
 test("settings section anchors still authorize loading and saving preferences", async () => {
   const h = harness();
-  const options = h.client("chrome-extension://extension-test/options.html#colors-heading").api;
+  const options = h.client("chrome-extension://extension-test/options/options.html#colors-heading").api;
   await options.execute({ type: "get-settings" });
   await options.execute({ type: "update-preferences", changes: [{ path: ["showGridLines"], value: false }] });
   assert.equal(h.read().showGridLines, false);
@@ -81,7 +81,7 @@ test("settings section anchors still authorize loading and saving preferences", 
 
 test("Firefox event-page manifest starts the settings writer without importScripts", async () => {
   const h = harness("event-page");
-  const options = h.client("chrome-extension://extension-test/options.html").api;
+  const options = h.client("chrome-extension://extension-test/options/options.html").api;
   const site = h.client("https://duelingbook.com/").api;
   const snapshot = await options.execute({ type: "get-settings" });
   assert.ok(snapshot.customBanlists.length > 0, "event page loads bundled defaults");
@@ -90,7 +90,7 @@ test("Firefox event-page manifest starts the settings writer without importScrip
   await Promise.all([
     site.execute({ type: "save-rps-mode", mode: "automatic" }),
     site.execute({ type: "save-deck-cardpool", deckId: 42, cardpool: { kind: "native", value: "tcg" } }),
-    options.execute({ type: "update-preferences", changes: require("../settings-store.js").changes(snapshot, edited) })
+    options.execute({ type: "update-preferences", changes: require("../extension/shared/settings-store.js").changes(snapshot, edited) })
   ]);
   assert.equal(h.read().autoStartRps, true);
   assert.equal(h.read().showGridLines, false);
@@ -100,7 +100,7 @@ test("Firefox event-page manifest starts the settings writer without importScrip
 test("host updates honor preserve-last-used and stale options preserve newer host fields", async () => {
   const h = harness();
   const site = h.client("https://duelingbook.com/").api;
-  const options = h.client("chrome-extension://extension-test/options.html").api;
+  const options = h.client("chrome-extension://extension-test/options/options.html").api;
   await site.execute({ type: "save-host-defaults", hostDefaults: { format: "eu" } });
   assert.equal(h.read().hostDefaults.format, "au");
   await options.execute({ type: "update-preferences", changes: [{ path: ["hostDefaults", "preserveLastUsed"], value: true }] });
@@ -108,7 +108,7 @@ test("host updates honor preserve-last-used and stale options preserve newer hos
   const edited = structuredClone(snapshot);
   edited.hostDefaults.watching = false;
   await site.execute({ type: "save-host-defaults", hostDefaults: { format: "eu", preserveLastUsed: false } });
-  await options.execute({ type: "update-preferences", changes: require("../settings-store.js").changes(snapshot, edited) });
+  await options.execute({ type: "update-preferences", changes: require("../extension/shared/settings-store.js").changes(snapshot, edited) });
   assert.equal(h.read().hostDefaults.format, "eu");
   assert.equal(h.read().hostDefaults.watching, false);
   assert.equal(h.read().hostDefaults.preserveLastUsed, true);
@@ -136,7 +136,7 @@ test("bridge relays settings and deduplicates its two transports", async () => {
     addEventListener(type, callback) { windowListeners[type] = callback; },
     postMessage(message) { posted.push(message); }
   };
-  vm.runInNewContext(fs.readFileSync(require.resolve("../bridge.js"), "utf8"), {
+  vm.runInNewContext(fs.readFileSync(require.resolve("../extension/bridge/bridge.js"), "utf8"), {
     chrome: client.chrome, console, window,
     document: {
       addEventListener(type, callback) { documentListeners[type] = callback; },
@@ -164,4 +164,19 @@ test("bridge relays settings and deduplicates its two transports", async () => {
   documentListeners["dueling-book-enhancer-v1-command"]({ detail: JSON.stringify(firstCommand) });
   await client.api.execute({ type: "get-settings" });
   assert.equal(posted.at(-1).settings.autoGoFirst, true);
+});
+
+
+test("popup quick changes use the shared writer and preserve other preferences and deck memory", async () => {
+  const h = harness();
+  const popup = h.client("chrome-extension://extension-test/popup/popup.html").api;
+  const site = h.client("https://duelingbook.com/").api;
+  await site.execute({ type: "save-deck-cardpool", deckId: 42, cardpool: { kind: "native", value: "tcg" } });
+  await Promise.all([
+    site.execute({ type: "save-rps-mode", mode: "automatic" }),
+    popup.execute({ type: "update-preferences", changes: [{ path: ["battleDamageConfirmation"], value: false }] })
+  ]);
+  assert.equal(h.read().battleDamageConfirmation, false);
+  assert.equal(h.read().autoStartRps, true);
+  assert.equal(h.read().deckCardpools[42].value, "tcg");
 });

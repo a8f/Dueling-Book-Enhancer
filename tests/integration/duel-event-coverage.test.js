@@ -3,8 +3,8 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
-const { createRuntime } = require("../duel-events.js");
-const source = fs.readFileSync(require.resolve("../duelingbook/duel.js"), "utf8");
+const { createRuntime } = require("../../extension/page/duel-events.js");
+const source = fs.readFileSync(require.resolve("../../duelingbook/duel.js"), "utf8");
 const dispatchSource = source.slice(source.indexOf("function duelResponse("), source.indexOf("function beginNextDuel("));
 const queueSource = dispatchSource.slice(dispatchSource.indexOf("function duelResponse2("));
 function cases(text) {

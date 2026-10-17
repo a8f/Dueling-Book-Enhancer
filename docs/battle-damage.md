@@ -1,6 +1,6 @@
 # Battle damage confirmation
 
-`features/battle-damage.js` tracks either player's attacks in a live manual duel
+`extension/page/features/battle-damage.js` tracks either player's attacks in a live manual duel
 and opens a nonmodal popup only for damage owed by the local player. This includes
 local attacks into higher ATK or DEF. Winning local attacks, local direct attacks
 and zero-damage battles stay quiet. Zero-damage battles remain tracked so a later
@@ -78,7 +78,7 @@ and [Kalut](https://www.db.yugioh-card.com/yugiohdb/card_search.action?cid=8164&
 
 ## Effect extension point
 
-`battle-damage.js` keeps the calculation independent of the DOM, native commands
+`extension/shared/battle-damage.js` keeps the calculation independent of the DOM, native commands
 and network events. `DBEnhancerBattleDamage.calculate(battle)` receives frozen
 attacker/target snapshots (instance ID, controller username, name, current ATK,
 DEF, attribute, face-down status and position), inferred effect labels, and the original duel event. It returns
@@ -98,6 +98,7 @@ of popup rendering. Future effects can extend those definitions or use a damage
 modifier for piercing/prevention. Negation, chain resolution, piercing and damage
 replacement rules are not currently implemented.
 
-Run `node --test` for calculator, popup/native-command and regression coverage.
+Run `npm run test:all` for calculator, popup/native-command and regression coverage.
+See [testing](testing.md) for the required local site references.
 The native stat keys, monster zones and LP command are based on the decompiled
 site under `duelingbook/`; live browser validation remains separate.

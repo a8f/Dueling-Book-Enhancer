@@ -1,7 +1,7 @@
 "use strict";
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { download, normalizeUrl } = require("../rule-list-download.js");
+const { download, normalizeUrl } = require("../extension/options/rule-list-download.js");
 const URL = "https://raw.githubusercontent.com/example/rules/main/list.json";
 
 test("only public raw GitHub JSON URLs are accepted", () => {

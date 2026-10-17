@@ -4,9 +4,9 @@ const assert = require("node:assert/strict");
 const { mkdtemp, writeFile } = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const core = require("../enhancer-core.js");
-const { create, mergeList } = require("../rule-list-watch.js");
-const { normalizeLocalUrl } = require("../rule-list-download.js");
+const core = require("../extension/shared/enhancer-core.js");
+const { create, mergeList } = require("../extension/options/rule-list-watch.js");
+const { normalizeLocalUrl } = require("../extension/options/rule-list-download.js");
 
 function fixture() {
   return { schemaVersion: 3, id: "test.local", name: "Local example", version: "1.0.0", formats: ["au"],
