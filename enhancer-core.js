@@ -157,7 +157,9 @@
       hostDefaults: { format: "au", type: "s", rules: "*", duelNote: "", duelPassword: "", watching: true, classic: false, tagDuel: false, watchNote: "", watchPassword: "", preserveLastUsed: false },
       rememberCardList: true, deckCardpools: {}, showGridLines: true,
       rpsEnhancements: true, autoStartRps: false, autoPickRps: false,
-      autoPayActivationCosts: false, battleDamageConfirmation: true,
+      autoPayActivationCosts: false, battleDamageConfirmation: true, autoShuffleHand: false,
+      autoShuffleAfterDraw: false,
+      handShuffleAggressiveness: 80,
       customSort: { groups: createDefaultGroups() },
       customBanlists: bundled,
       deletedBundledBanlists: [],
@@ -253,6 +255,9 @@
     result.autoPickRps = safe.autoPickRps === true;
     result.rpsEnhancements = safe.rpsEnhancements !== false;
     result.autoPayActivationCosts = safe.autoPayActivationCosts === true;
+    result.autoShuffleHand = safe.autoShuffleHand === true;
+    result.autoShuffleAfterDraw = safe.autoShuffleAfterDraw === true;
+    result.handShuffleAggressiveness = sanitizeShuffleAggressiveness(safe.handShuffleAggressiveness);
     result.battleDamageConfirmation = safe.battleDamageConfirmation !== false;
     result.autoStartRps = safe.autoStartRps === true;
     if (result.autoStartRps) result.autoPickRps = true;
@@ -408,10 +413,18 @@
     const previousIndex = Math.max(0, previous.indexOf(currentValue));
     return available[Math.min(previousIndex, available.length - 1)].value;
   }
+  function sanitizeShuffleAggressiveness(value) {
+    return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 80;
+  }
+  function handShuffleTiming(value) {
+    const fraction = sanitizeShuffleAggressiveness(value) / 100;
+    return { idleMs: Math.round(3000 - 2500 * fraction),
+      awayMs: Math.round(1000 - 850 * fraction), distance: Math.round(100 - 70 * fraction) };
+  }
   return Object.freeze({
     COLOR_DEFINITIONS, CUSTOM_CARDPOOL_REGION_POLICY, DEFAULT_SETTINGS, FIELD_LIBRARY, HOST_FORMAT_OPTIONS, HOST_RULE_OPTIONS, HOST_TYPE_OPTIONS,
     NATIVE_CARDPOOL_DEFINITIONS, ROOM_DEFINITIONS, TYPE_DEFINITIONS, TYPE_ORDER, classifyCard, compareCards, composeColor, copy,
     createDefaultGroups, createDefaultSettings, customSortUsesDefaults, defaultRowsForTypes, getAvailableHostFormats, getRoomLayout,
-    intersectFields, normalizeGroupRows, readCardValue, sanitizeCardpoolDescriptor, sanitizeSettings, selectAvailableHostFormat, splitColorValue
+    intersectFields, normalizeGroupRows, readCardValue, sanitizeCardpoolDescriptor, sanitizeSettings, selectAvailableHostFormat, splitColorValue, handShuffleTiming
   });
 });

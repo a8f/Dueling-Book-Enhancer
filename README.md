@@ -23,6 +23,8 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 - Choose a saved RPS mode: Manual, Random on tie, or Automatic.
 - Click Automatic to pick randomly now, repeat after ties, and start future duels automatically. Random on tie waits for your first manual card choice.
 - Disable all RPS controls and automatic picks under Automation in settings.
+- Opt in to shuffling your hand after your first draw in your own Draw Phase, once per turn, under Automation in settings.
+- Optionally batch any draws before shuffling, with an aggressiveness slider from cautious to fast. The default waits 1 second after the last draw and 0.32 seconds with the pointer at least 44 pixels from the deck/draw menu. Manual shuffling immediately cancels the pending automatic shuffle, as do hand edits, leaving the tab, or 20 seconds of waiting. This delayed option takes priority over immediate turn-draw shuffling.
 - Group RPS, battle damage, and spell/trap LP costs under Automation in settings; battle damage suggestions can be disabled independently.
 - Opt in to automatic LP cost payment for your own spell/trap activations. Detects clear fixed and half-LP costs in modern text and simple older Edison wording; ambiguous effects, monster effects, upkeep, and Apply effect actions stay manual. See [activation costs](docs/activation-costs.md).
 - Confirm battle damage you owe with an OK/Cancel popup using current board ATK/DEF, including your own attacks into stronger monsters. Zero-damage battles stay quiet. LP changes only after OK; cancel stopped attacks or special damage effects.

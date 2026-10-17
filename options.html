@@ -87,6 +87,16 @@
         <section class="settings-section" aria-labelledby="automation-heading">
           <div class="section-heading"><h2 id="automation-heading">Automation</h2></div>
           <div class="panel rps-settings">
+            <h3>Hand shuffle</h3>
+            <label class="preserve-control"><input id="auto-shuffle-hand" type="checkbox" aria-describedby="hand-shuffle-description"><strong>Shuffle hand after drawing for turn</strong></label>
+            <p id="hand-shuffle-description" class="setting-description">Automatically shuffle your hand after your first draw in your own Draw Phase, once per turn.</p>
+            <label class="preserve-control"><input id="auto-shuffle-after-draw" type="checkbox" aria-describedby="delayed-shuffle-description"><strong>Shuffle hand after finishing draws</strong></label>
+            <p id="delayed-shuffle-description" class="setting-description">Wait briefly after your last draw and until your pointer moves away from the deck and draw menu. Further draws restart the wait. Manually shuffling, changing your hand, leaving the tab, or waiting over 20 seconds cancels it. When both options are enabled, this delayed behavior takes priority.</p>
+            <label for="hand-shuffle-aggressiveness"><strong>Shuffle aggressiveness</strong> — cautious to fast</label>
+            <input id="hand-shuffle-aggressiveness" type="range" min="0" max="100" step="1" value="80" aria-describedby="hand-shuffle-timing">
+            <output id="hand-shuffle-timing" for="hand-shuffle-aggressiveness" class="setting-description"></output>
+          </div>
+          <div class="panel rps-settings">
             <h3>Spell and trap costs</h3>
             <label class="preserve-control"><input id="auto-pay-activation-costs" type="checkbox" aria-describedby="activation-cost-description"><strong>Automatically pay activation LP costs</strong></label>
             <p id="activation-cost-description" class="setting-description">Pay clear fixed or half-LP costs when you activate your own Spell or Trap. Supports modern text and simple older wording used in Edison. Skips ambiguous effects, effect choices, upkeep, monster effects, and Apply effect actions. Other costs remain manual. Payment is immediate; do not also subtract it manually. Use the normal LP controls to correct a payment.</p>

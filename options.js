@@ -933,6 +933,10 @@
     document.getElementById("rps-enhancements").checked = currentSettings.rpsEnhancements;
     document.getElementById("auto-pay-activation-costs").checked = currentSettings.autoPayActivationCosts;
     document.getElementById("battle-damage-confirmation").checked = currentSettings.battleDamageConfirmation;
+    document.getElementById("auto-shuffle-hand").checked = currentSettings.autoShuffleHand;
+    document.getElementById("auto-shuffle-after-draw").checked = currentSettings.autoShuffleAfterDraw;
+    document.getElementById("hand-shuffle-aggressiveness").value = currentSettings.handShuffleAggressiveness;
+    renderShuffleTiming();
     const rpsMode = currentSettings.autoStartRps ? "automatic" : currentSettings.autoPickRps ? "repeat" : "manual";
     ["manual", "repeat", "automatic"].forEach(mode => {
       document.getElementById("rps-mode-" + mode).checked = mode === rpsMode;
@@ -978,6 +982,9 @@
     candidate.rpsEnhancements = document.getElementById("rps-enhancements").checked;
     candidate.autoPayActivationCosts = document.getElementById("auto-pay-activation-costs").checked;
     candidate.battleDamageConfirmation = document.getElementById("battle-damage-confirmation").checked;
+    candidate.autoShuffleHand = document.getElementById("auto-shuffle-hand").checked;
+    candidate.autoShuffleAfterDraw = document.getElementById("auto-shuffle-after-draw").checked;
+    candidate.handShuffleAggressiveness = Number(document.getElementById("hand-shuffle-aggressiveness").value);
     candidate.autoStartRps = document.getElementById("rps-mode-automatic").checked;
     candidate.autoPickRps = candidate.autoStartRps || document.getElementById("rps-mode-repeat").checked;
     candidate.customSort.groups = readSortGroupsFromDom();
@@ -1112,6 +1119,15 @@
     saving = false;
     saveButton.disabled = false;
   }).catch(error => showSavedStatus("Load failed: " + error.message));
+
+  function renderShuffleTiming() {
+    const slider = document.getElementById("hand-shuffle-aggressiveness");
+    const timing = core.handShuffleTiming(Number(slider.value));
+    const text = `Wait ${(timing.idleMs / 1000).toFixed(2)}s after drawing; pointer ${timing.distance}px away for ${(timing.awayMs / 1000).toFixed(2)}s.`;
+    document.getElementById("hand-shuffle-timing").textContent = text;
+    slider.setAttribute("aria-valuetext", text);
+  }
+  document.getElementById("hand-shuffle-aggressiveness").addEventListener("input", renderShuffleTiming);
 
   form.addEventListener("submit", function saveSettings(event) {
     event.preventDefault();

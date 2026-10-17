@@ -21,6 +21,13 @@ so the same module works in a page, a service worker and Node tests.
 | `rps.js` | RPS controls, saved modes and per-duel selection state |
 | `battle-damage.js` | Incoming attack confirmation UI and pending battle lifecycle |
 | `activation-costs.js` | Opt-in spell/trap activation LP payments |
+| `hand-shuffle.js` | Opt-in turn-draw shuffle and conservative batching of other draws |
+
+Hand-shuffle aggressiveness controls the draw delay (3s to 0.5s), pointer-away
+duration (1s to 0.15s), and clearance (100px to 30px). The default is 80/100.
+The feature wraps the native outgoing `Send` function to cancel pending work
+immediately on a hand-shuffle command, including from already-bound native
+handlers. Recovery ticks reinstall the hook if the site replaces `Send`.
 
 Each factory receives page dependencies, a settings accessor, a command sender
 and its own lifecycle bindings. Feature state stays inside the factory closure.

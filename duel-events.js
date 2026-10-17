@@ -140,7 +140,17 @@
       for (const rule of listeners) {
         if (rules.get(rule.id) !== rule) continue;
         let usedLifeAction = false;
+        let usedShuffleAction = false;
         const actions = Object.freeze({
+          shuffleHand() {
+            if (usedShuffleAction || !event.live || !live() || page.duelId !== event.duelId ||
+                page.player1 !== game || generation !== gameGeneration || page.username !== localUsername ||
+                rules.get(rule.id) !== rule || page.turnCount !== event.turn ||
+                typeof page.shuffleHandE !== "function") return false;
+            usedShuffleAction = true;
+            page.shuffleHandE();
+            return true;
+          },
           adjustLifePoints(amount) {
             // One command per rule/event, even when a feature defers its action.
             if (usedLifeAction || !event.live || !live() || page.duelId !== event.duelId ||

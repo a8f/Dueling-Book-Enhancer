@@ -35,6 +35,12 @@ database ID. These differ from duel instance IDs, which identify individual
 copies. Actor filters are `self`, `opponent`, `partner`, or `unknown`.
 Unknown identities do not match named cards.
 
+`actions.shuffleHand()` sends the native hand-shuffle command once per rule/event.
+It requires a live duel and rejects deferred calls
+after the duel, game generation, username, turn, or rule registration changes.
+The hand-shuffle feature defers until the native draw handler has added the card;
+the site's animation queue then processes the shuffle response after the draw.
+
 Rules run synchronously in registration order. Exceptions and rejected promises
 are reported without interrupting the site's action or other rules. Avoid slow
 work inside callbacks. Unregistering is immediate; registrations made during an
