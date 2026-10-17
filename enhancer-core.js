@@ -194,13 +194,16 @@
     };
     const rule = value => keys(value, ["id", "card", "label", "requires", "activation", "resolution"]) &&
       text(value.id, 80) && /^[a-z0-9][a-z0-9._-]{0,79}$/.test(value.id) && card(value.card) && text(value.label) &&
-      keys(value.requires, ["sourceZone", "ownTurn", "phases"]) && value.requires.sourceZone === "graveyard" &&
+      keys(value.requires, ["sourceZone", "ownTurn", "phases", "absentFaceUpCards"]) && value.requires.sourceZone === "graveyard" &&
       value.requires.ownTurn === true && Array.isArray(value.requires.phases) && value.requires.phases.length > 0 &&
       value.requires.phases.length <= 6 && value.requires.phases.every(phase => ["DP", "SP", "M1", "BP", "M2", "EP"].includes(phase)) &&
+      (value.requires.absentFaceUpCards === undefined || (Array.isArray(value.requires.absentFaceUpCards) &&
+        value.requires.absentFaceUpCards.length > 0 && value.requires.absentFaceUpCards.length <= 10 && value.requires.absentFaceUpCards.every(card))) &&
       Array.isArray(value.activation) && value.activation.length === 1 &&
       keys(value.activation[0], ["op", "card"]) && value.activation[0].op === "banish" && value.activation[0].card === "source" &&
       Array.isArray(value.resolution) && value.resolution.length === 1 &&
-      keys(value.resolution[0], ["op", "from", "card", "positions"]) && value.resolution[0].op === "special-summon" &&
+      keys(value.resolution[0], ["op", "from", "card", "positions", "onNoMonsterZone"]) && value.resolution[0].op === "special-summon" &&
+      (value.resolution[0].onNoMonsterZone === undefined || value.resolution[0].onNoMonsterZone === "destroy-to-graveyard") &&
       value.resolution[0].from === "deck" && card(value.resolution[0].card) &&
       Array.isArray(value.resolution[0].positions) && value.resolution[0].positions.length > 0 &&
       value.resolution[0].positions.length <= 2 && value.resolution[0].positions.every(position => ["ATK", "DEF"].includes(position)) &&

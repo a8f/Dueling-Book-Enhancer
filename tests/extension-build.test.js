@@ -17,7 +17,7 @@ test("runtime build uses only manifest dependencies, excluding optional repos an
   assert.ok(result.files.includes("rule-card-validation.js"));
   assert.ok(!result.files.includes("card-identities.js"), "card catalog must not be bundled");
   assert.ok(result.files.includes("settings-store.js"));
-  assert.ok(!result.files.some(file => /^(personal-rules|rules|duelingbook|tests|docs|\.git)\//.test(file)));
+  assert.ok(!result.files.some(file => /^(card-rule-extractor|personal-rules|rules|duelingbook|tests|docs|\.git)\//.test(file)));
   const core = await readFile(path.join(result.output, "enhancer-core.js"), "utf8");
   assert.match(core, /automationLists: \[\]/);
 });
@@ -31,6 +31,8 @@ test("build needs no optional list repository or network", async () => {
   await writeFile(path.join(source, "options.html"), '<script src="main.js"></script>');
   await mkdir(path.join(source, "personal-rules"));
   await writeFile(path.join(source, "personal-rules", "private.json"), "must not be packaged");
+  await mkdir(path.join(source, "card-rule-extractor"));
+  await writeFile(path.join(source, "card-rule-extractor", "extract-card-rules.mjs"), "throw new Error('optional tool must not run');");
   const result = await buildExtension(source, path.join(source, "output"));
   assert.deepEqual(result.files, ["main.js", "manifest.json", "options.html"]);
 });

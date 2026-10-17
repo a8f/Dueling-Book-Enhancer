@@ -18,6 +18,15 @@ test("catalog validation matches padded printed passcodes in compact and full re
   assert.equal(validator.check(list()).checked, 0, "passcodes never match database IDs");
 });
 
+test("catalog validation includes historical prerequisite card identities", async () => {
+  const rules = list();
+  rules.rules[0].requires = { absentFaceUpCards: [{ passcode: "09000004", name: "Example Prohibition" }] };
+  const validator = create({ requestPermission: async () => true, fetchImpl: async () => new Response(JSON.stringify([
+    { id: 4, s: 9000004, n: "Actual Prohibition" }
+  ])) });
+  await assert.rejects(validator.downloadAndCheck(rules), /09000004.*Actual Prohibition/);
+});
+
 test("catalog validation is explicit, requests optional permission, and does not fetch on ordinary checks", async () => {
   let downloads = 0, permissions = 0;
   const validator = create({ requestPermission: async request => {

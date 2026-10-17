@@ -49,6 +49,12 @@ name mismatches before activation or summoning.
 
 ## Local development without publishing
 
+The optional [simulator extractor](simulator-rule-extraction.md) lives in its own
+`card-rule-extractor` submodule. Its CLI uses `--write <list-path>` and an explicit
+target `--ruleset`. Sourced historical mappings can correct or reconstruct card
+behavior; `--research` looks up historical/revised rulings and suggests further
+corrections. Ordinary extension work does not need this tool.
+
 To iterate against a local rules checkout, run:
 
 ```sh
@@ -98,7 +104,11 @@ rule has:
   identifier per selector. Names are display metadata; conflicting names for one
   identifier within a list are rejected. No download is needed to match native
   card metadata. Commands still use duel instance IDs to target individual copies.
-- `requires: { sourceZone, ownTurn, phases }`.
+- `requires: { sourceZone, ownTurn, phases }`, optionally with `absentFaceUpCards`:
+  an array of card selectors that must not be face-up on either player's field
+  when activating. Card identities stay in the list. The engine checks them
+  before declaration and again before paying cost; negated continuous effects
+  require manual adjudication.
 - An `activation` array of native operation descriptors.
 - A `resolution` array with a card selector and permitted player choices.
 
@@ -110,6 +120,17 @@ may differ and are supplied entirely by the list. Currently the source zone
 must be `graveyard`, `ownTurn` must be true, and positions can be `ATK`, `DEF`,
 or both. Required phases are supplied by the rule. Unsupported compositions,
 fields and operations are rejected rather than partially interpreted.
+
+A summon step can optionally specify `onNoMonsterZone: "destroy-to-graveyard"`.
+Activation still requires a free monster zone. If all zones become occupied
+before resolution, the engine searches the current Deck, identifies a matching
+copy, sends native `To GY`, waits for receipt and execution plus confirmed
+Graveyard placement, then closes the search for the native shuffle. The journal
+records destruction. Duelingbook represents manual destruction with this same
+movement command; consequences of destruction and replacement effects remain
+manual. Without this field the engine retains its ordinary stop-on-full-zone
+behavior. Schema 3 remains backward compatible for existing lists; older
+extension versions reject these new optional fields.
 
 Adding a new card using supported operations changes only the external JSON.
 Supporting a new operation requires an extension adapter with protocol and
@@ -153,12 +174,18 @@ normally to obtain its native shuffle. Replay, spectating and tag play are exclu
 Web Locks coordinate this feature across tabs on the same origin only, not across
 devices, browsers, the alternate www/non-www origin or other extensions.
 
-## Separate list repositories
+## Optional repositories
 
 The `personal-rules/` Git submodule is an optional pinned development checkout
 with independent history. Only its repository URL and commit pointer belong to
 this repository, not the card-effect files. Ordinary clones do not download it.
 Developers who want it can explicitly run `git submodule update --init personal-rules`.
+
+The `card-rule-extractor/` submodule points to
+[`a8f/dbe-sim-extractor`](https://github.com/a8f/dbe-sim-extractor) and contains the
+independent simulator extractor, historical profiles and checks. Initialize it
+with `git submodule update --init card-rule-extractor` only when wanted. Extension
+builds and normal regression tests do not depend on either optional repository.
 
 The extension tests use fictional card fixtures and work when the submodule is
 uninitialized. Rule-specific checks live in the rules repository. The runtime-only

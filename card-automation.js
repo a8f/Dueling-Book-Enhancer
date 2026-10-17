@@ -30,6 +30,18 @@
       (!page.websocket || page.websocket.readyState === 1);
     const idle = () => Array.isArray(page.actionsQueue) && page.actionsQueue.length === 0 && page.stopQueue === false;
     const zone = player => [1, 2, 3, 4, 5].find(index => !player["m" + index]);
+    const hasOverflowResolution = () => run?.rule.resolution[0].onNoMonsterZone === "destroy-to-graveyard";
+    function prerequisiteProblem(rule) {
+      for (const selector of rule.requires.absentFaceUpCards || []) {
+        for (const player of [page.player1, page.player2]) {
+          const cards = [player?.fieldSpell, ...[1, 2, 3, 4, 5].flatMap(index => [player?.["m" + index], player?.["s" + index]])];
+          if (cards.some(card => card && !card.data("face_down") && matches(selector, card))) {
+            return "This effect cannot activate while " + selector.name + " is face-up. If its effect is negated, adjudicate and play manually.";
+          }
+        }
+      }
+      return null;
+    }
     function matchingLists(card = run && run.source) {
       return (getSettings().automationLists || []).filter(list => list.enabled && list.formats.includes(page.duelFormat) &&
         list.rules.some(rule => matches(rule.card, card)));
@@ -53,6 +65,8 @@
       const rule = rules[0];
       const problem = identityProblem(rule, card);
       if (problem) return problem;
+      const prerequisite = prerequisiteProblem(rule);
+      if (prerequisite) return prerequisite;
       if (rule.requires.ownTurn && page.turn_player !== local()) return "This rule requires your own turn.";
       if (!rule.requires.phases.includes(page.currentPhase)) return "This rule requires phase " + rule.requires.phases.join(" or ") + ". Change phase, then open automation again.";
       if (!local().main_arr.length) return "Your Deck is empty. The rule requires a matching card in your Deck.";
@@ -66,13 +80,13 @@
       const lists = matchingLists(card);
       const rules = lists.flatMap(list => list.rules.filter(rule => matches(rule.card, card)));
       const rule = rules[0];
-      return Boolean(live() && player && rules.length === 1 && !identityProblem(rule, card) &&
+      return Boolean(live() && player && rules.length === 1 && !identityProblem(rule, card) && !prerequisiteProblem(rule) &&
         !card.data("face_down") && player.grave_arr.includes(card) && card.data("owner") === player &&
         player.main_arr.length && zone(player) && (!rule.requires.ownTurn || page.turn_player === player) && rule.requires.phases.includes(page.currentPhase));
     }
     function identityProblem(rule, source) {
       if (name(source) !== rule.card.name) return "The source card identifier and name do not match the rule. Correct the rules list.";
-      for (const selector of [rule.card, rule.resolution[0].card]) {
+      for (const selector of [rule.card, rule.resolution[0].card, ...(rule.requires.absentFaceUpCards || [])]) {
         const lookup = selector.passcode !== undefined ? page.getCardByPasscode : page.getCard;
         const known = typeof lookup === "function" ? lookup.call(page, selector.passcode ?? selector.id) : null;
         if (known && known.name && known.name !== selector.name) return "Card " + (selector.passcode ?? selector.id) + " belongs to " + known.name + ". Correct the rules list.";
@@ -181,7 +195,7 @@
     function release(waitForOpponent = false) {
       if (!valid() || !["ready", "waiting", "suspended"].includes(run.state) || (!waitForOpponent && !idle())) return;
       if (!run.costPaid || !run.player.banished_arr.includes(run.source) || run.source.data("face_down") ||
-          !zone(run.player)) { finish("The source card or available zones changed. Continue manually."); return; }
+          (!zone(run.player) && !hasOverflowResolution())) { finish("The source card or available zones changed. Continue manually."); return; }
       if (waitForOpponent) {
         run.armedAfter = lastSequence;
         run.goodExecuted = false;
@@ -196,7 +210,7 @@
       else openDeck();
     }
     function openDeck() {
-      if (!run.player.main_arr.length || !zone(run.player)) { finish("No deck cards or free monster zones. Continue manually."); return; }
+      if (!run.player.main_arr.length || (!zone(run.player) && !hasOverflowResolution())) { finish("No deck cards or free monster zones. Continue manually."); return; }
       run.deckInstances = run.player.main_arr.slice();
       expect("view-deck", "View deck", null, "Searching your Deck for " + run.rule.resolution[0].card.name + "…");
       send("View deck", id(run.player.main_arr[0]));
@@ -299,9 +313,17 @@
           }
           run.target = run.player.main_arr[index];
           const free = zone(run.player);
-          if (!free) { finish("No free monster zone. Finish manually."); return; }
+          if (!free && !hasOverflowResolution()) { finish("No free monster zone. Finish manually."); return; }
           if (page.viewing !== "Deck") page.viewingE("Deck");
           run.targetId = id(run.target);
+          if (!free) {
+            run.resolutionOutcome = "destroyed";
+            expect("destroying", "To GY", run.targetId, "No monster zone remains: destroying the Deck copy and sending it to the Graveyard…");
+            // Native manual-mode destruction uses the normal To GY movement;
+            // Duelingbook has no separate Destroy command (duel.js card menu).
+            send("To GY", run.targetId);
+            break;
+          }
           run.summonZone = "m" + free;
           expect("summoning", "SS " + run.position, run.targetId, "Special Summoning in " + run.position + "…");
           send("SS " + run.position, run.targetId, { zone: "M-" + free });
@@ -313,12 +335,18 @@
           run.journal.push("Special Summoned " + run.rule.resolution[0].card.name + " in " + run.position);
           stopViewing("close-deck");
           break;
+        case "destroying":
+          if (run.player.main_arr.includes(run.target) || !run.player.grave_arr.includes(run.target) ||
+              !matches(run.rule.resolution[0].card, run.target) || run.target.data("face_down")) return;
+          run.journal.push("Destroyed " + run.rule.resolution[0].card.name + " from Deck and sent it to the Graveyard (no monster zone)");
+          stopViewing("close-deck");
+          break;
         case "close-deck":
           // Captures show Stop viewing Deck causes a server-issued shuffle.
           // Sending our own Shuffle deck here would duplicate that native step.
           if (run.player.main_arr.length && !run.shuffleExecuted) return;
           run.journal.push("Closed Deck search" + (run.shuffleExecuted ? " and shuffled Deck" : ""));
-          finish("Effect resolved in " + run.position + ".", "completed");
+          finish(run.resolutionOutcome === "destroyed" ? "Effect resolved: Deck copy destroyed and sent to the Graveyard." : "Effect resolved in " + run.position + ".", "completed");
           break;
       }
     }

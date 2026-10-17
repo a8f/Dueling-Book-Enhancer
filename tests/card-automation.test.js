@@ -46,6 +46,10 @@ function harness() {
     duelResponse2(player, message) {
       page.actionsQueue.push(() => {
         if (message.play === "Banish") { self.grave_arr = []; self.banished_arr.push(source); }
+        if (message.play === "To GY" && message.id === target.data("id")) {
+          self.main_arr = self.main_arr.filter(item => item !== target);
+          self.grave_arr.push(target);
+        }
         if (/^SS (ATK|DEF)$/.test(message.play)) {
           self.main_arr = self.main_arr.filter(item => item !== target);
           self.m1 = target;
@@ -123,6 +127,99 @@ test("only a matching local graveyard card in selected formats and a free zone i
   h.self.m1 = null;
   h.page.turn_player = h.opponent;
   assert.equal(h.runtime.eligible(h.source), false);
+});
+
+function historicalRule(h) {
+  const rule = h.settings.automationLists[0].rules[0];
+  rule.requires.absentFaceUpCards = [{ passcode: "09000004", name: "Example Prohibition" }];
+  rule.resolution[0].onNoMonsterZone = "destroy-to-graveyard";
+  return rule;
+}
+
+test("optional historical fields validate strictly and roundtrip with prerequisite selectors", () => {
+  const h = harness(); historicalRule(h);
+  const fixture = h.settings.automationLists[0];
+  assert.deepEqual(core.importAutomationList(core.exportAutomationList(fixture)).rules, fixture.rules);
+  for (const invalid of [[], "anything", [{ name: "No identifier" }], Array(11).fill({ passcode: "09000004", name: "Example Prohibition" })]) {
+    const copy = structuredClone(fixture); copy.rules[0].requires.absentFaceUpCards = invalid;
+    assert.throws(() => core.validateAutomationList(copy));
+  }
+  for (const invalid of [null, "send-to-graveyard", { script: "anything" }]) {
+    const copy = structuredClone(fixture); copy.rules[0].resolution[0].onNoMonsterZone = invalid;
+    assert.throws(() => core.validateAutomationList(copy));
+  }
+});
+
+test("generic face-up card prerequisite checks either player's field before declaration and cost", () => {
+  for (const opponent of [false, true]) {
+    const h = harness(); historicalRule(h);
+    const prohibition = card(8, "Example Prohibition", 90000004);
+    const player = opponent ? h.opponent : h.self;
+    player.fieldSpell = prohibition;
+    assert.equal(h.runtime.eligible(h.source), false);
+    assert.equal(h.runtime.prepare(h.source), false);
+    assert.match(h.runtime.snapshot().message, /Example Prohibition/);
+    assert.deepEqual(h.commands, []);
+    prohibition.data("face_down", true);
+    assert.equal(h.runtime.eligible(h.source), true, "set cards do not apply the prohibition");
+  }
+  const h = harness(); historicalRule(h);
+  h.runtime.prepare(h.source); h.runtime.choose("ATK"); h.runtime.activate();
+  h.opponent.fieldSpell = card(8, "Example Prohibition", 90000004);
+  h.echo("Declare", { id: 1 }); h.runtime.tick();
+  assert.equal(h.runtime.snapshot().state, "stopped");
+  assert.equal(h.commands.some(command => command.play === "Banish"), false, "recheck before cost");
+});
+
+test("historical overflow destroys a fresh Deck match, acknowledges To GY, then closes and shuffles", () => {
+  const h = harness(); historicalRule(h); h.prepared();
+  for (let i = 1; i <= 5; i++) h.self["m" + i] = card(20 + i);
+  h.runtime.release(); h.echo("Stop viewing"); h.runtime.tick();
+  assert.equal(h.commands.at(-1).play, "View deck");
+  h.echo("View deck", { deck: [
+    { serial_number: "09000002", name: "Other monster", card_type: "Monster" },
+    { serial_number: "09000001", name: CARD, card_type: "Monster" }
+  ] }); h.runtime.tick();
+  assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "To GY", card: 2 });
+  h.runtime.tick();
+  assert.equal(h.commands.at(-1).play, "To GY", "no early close or repeated movement");
+  h.echo("To GY", { id: 2 }, true); h.runtime.tick();
+  assert.equal(h.commands.at(-1).play, "To GY", "wait for native execution");
+  h.flush(); h.runtime.tick();
+  assert.equal(h.commands.at(-1).play, "Stop viewing");
+  h.echo("Stop viewing"); h.runtime.tick();
+  assert.equal(h.runtime.snapshot().state, "close-deck");
+  h.echo("Shuffle deck"); h.runtime.tick();
+  assert.equal(h.runtime.snapshot().state, "completed");
+  assert.match(h.runtime.snapshot().message, /destroyed/);
+  assert.ok(h.runtime.snapshot().journal.some(entry => /Destroyed.*Deck/.test(entry)));
+  assert.equal(h.commands.some(command => command.play.startsWith("SS ")), false);
+  assert.equal(h.commands.filter(command => command.play === "To GY").length, 1);
+});
+
+test("overflow policy cannot make activation legal with full zones or bypass a missing Deck match", () => {
+  const h = harness(); historicalRule(h);
+  for (let i = 1; i <= 5; i++) h.self["m" + i] = card(20 + i);
+  assert.equal(h.runtime.eligible(h.source), false);
+  assert.equal(h.runtime.prepare(h.source), false);
+  assert.deepEqual(h.commands, []);
+  const other = harness(); historicalRule(other); other.prepared();
+  for (let i = 1; i <= 5; i++) other.self["m" + i] = card(20 + i);
+  other.runtime.release(); other.echo("Stop viewing"); other.runtime.tick();
+  other.echo("View deck", { deck: [{ name: "Wrong" }, { serial_number: "09000002", name: CARD, card_type: "Monster" }] });
+  other.runtime.tick();
+  assert.equal(other.runtime.snapshot().state, "stopped");
+  assert.equal(other.commands.some(command => command.play === "To GY"), false);
+});
+
+test("historical policy still summons normally when a zone is free; legacy rules stop on overflow", () => {
+  const h = harness(); historicalRule(h); h.prepared(); h.resolveToSummon();
+  assert.equal(h.commands.at(-1).play, "SS DEF");
+  const legacy = harness(); legacy.prepared();
+  for (let i = 1; i <= 5; i++) legacy.self["m" + i] = card(20 + i);
+  legacy.runtime.release();
+  assert.equal(legacy.runtime.snapshot().state, "stopped");
+  assert.equal(legacy.commands.some(command => command.play === "View deck"), false);
 });
 
 test("selectors require passcodes or database IDs, reject legacy rules and inconsistent names", () => {
@@ -492,4 +589,25 @@ test("summon zone commands match the inspected native chooseZone payload", () =>
   vm.createContext(page); vm.runInContext(native.slice(begin, end), page);
   page.chooseZone.call(element);
   assert.deepEqual(JSON.parse(JSON.stringify(commands)), [{ action: "Duel", play: "SS DEF", card: 2, zone: "M-1" }]);
+});
+
+test("captured Deck-to-Graveyard movement confirms To GY acknowledgment and native shuffle", () => {
+  const har = JSON.parse(fs.readFileSync(require.resolve("../duelingbook/network-captures/first_real_game.har"), "utf8"));
+  const messages = har.log.entries.flatMap(entry => (entry._webSocketMessages || []).flatMap(frame => {
+    try { return [{ direction: frame.type, ...JSON.parse(frame.data) }]; } catch (_) { return []; }
+  })).filter(message => message.action === "Duel");
+  const index = messages.findIndex((message, i) => message.direction === "send" && message.play === "View deck" &&
+    messages[i + 2]?.direction === "send" && messages[i + 2]?.play === "To GY");
+  assert.ok(index >= 0);
+  const steps = messages.slice(index, index + 7);
+  assert.equal(steps[1].viewing, "Deck");
+  assert.equal(typeof steps[2].card, "number");
+  assert.equal(steps[3].direction, "receive");
+  assert.equal(steps[3].play, "To GY");
+  assert.equal(steps[3].id, steps[2].card);
+  assert.equal(steps[4].play, "Stop viewing");
+  assert.equal(steps[4].viewing, "Deck");
+  assert.equal(steps[6].direction, "receive");
+  assert.equal(steps[6].play, "Shuffle deck");
+  assert.equal(steps[6].deck.length, steps[1].deck.length - 1);
 });
