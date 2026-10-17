@@ -51,6 +51,7 @@
         "page/features/sorting.js",
         "page/features/rps.js",
         "page/features/turn-order.js",
+        "page/features/intro.js",
         "page/features/battle-damage.js",
         "page/features/activation-costs.js",
         "page/features/card-automation.js",

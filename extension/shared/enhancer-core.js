@@ -185,7 +185,7 @@
       schemaVersion: 2, appearance: { mode: "dark", theme: "cyan" }, popupShortcuts: [...DEFAULT_POPUP_SHORTCUTS],
       visibleRooms: visibleRooms, roomOrder: ROOM_DEFINITIONS.map(room => room.id),
       hostDefaults: { format: "au", type: "s", rules: "*", duelNote: "", duelPassword: "", watching: true, classic: false, tagDuel: false, watchNote: "", watchPassword: "", preserveLastUsed: false },
-      rememberCardList: true, deckCardpools: {}, showGridLines: true,
+      rememberCardList: true, deckCardpools: {}, showGridLines: true, autoSkipIntro: true,
       rpsEnhancements: true, autoStartRps: false, autoPickRps: false, autoGoFirst: false,
       autoPayActivationCosts: false, battleDamageConfirmation: true, autoShuffleHand: false,
       autoShuffleAfterDraw: false,
@@ -366,6 +366,7 @@
     result.showGridLines = safe.showGridLines !== false;
     result.autoPickRps = safe.autoPickRps === true;
     result.autoGoFirst = safe.autoGoFirst === true;
+    result.autoSkipIntro = safe.autoSkipIntro !== false;
     result.rpsEnhancements = safe.rpsEnhancements !== false;
     result.autoPayActivationCosts = safe.autoPayActivationCosts === true;
     result.automationConfirmSelections = safe.automationConfirmSelections === true;

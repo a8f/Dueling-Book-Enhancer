@@ -932,6 +932,7 @@
       currentSettings.showGridLines;
     document.getElementById("rps-enhancements").checked = currentSettings.rpsEnhancements;
     document.getElementById("auto-go-first").checked = currentSettings.autoGoFirst;
+    document.getElementById("auto-skip-intro").checked = currentSettings.autoSkipIntro;
     document.getElementById("auto-pay-activation-costs").checked = currentSettings.autoPayActivationCosts;
     document.getElementById("automation-confirm-selections").checked = currentSettings.automationConfirmSelections;
     renderAutomationLists();
@@ -985,6 +986,7 @@
       document.getElementById("show-grid-lines").checked;
     candidate.rpsEnhancements = document.getElementById("rps-enhancements").checked;
     candidate.autoGoFirst = document.getElementById("auto-go-first").checked;
+    candidate.autoSkipIntro = document.getElementById("auto-skip-intro").checked;
     candidate.autoPayActivationCosts = document.getElementById("auto-pay-activation-costs").checked;
     candidate.automationConfirmSelections = document.getElementById("automation-confirm-selections").checked;
     candidate.automationLists = readAutomationLists();
