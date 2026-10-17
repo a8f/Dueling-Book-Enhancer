@@ -48,7 +48,13 @@ transports share request IDs so duplicate deliveries execute once. This layer
 does not write storage and does not accept arbitrary preference patches from
 the website.
 
-## Persistence (extension service worker)
+## Persistence (extension background context)
+
+Chrome runs `background.js` as a service worker. Firefox runs the ordered
+`background.scripts` list as an event page. Dependencies load through
+`importScripts` only in the worker; the event page loads them from the manifest.
+Both environments use the same settings writer and command queue. Keep both
+background entry points functional when changing initialization.
 
 `background.js` is the only storage writer. It creates a `settings-store.js`
 command queue shared by all site tabs and options pages. Each operation reads

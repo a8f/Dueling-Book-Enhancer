@@ -47,6 +47,13 @@ automation rules are enabled by default.
 
 For later updates, replace the folder contents, then click **Reload** on the extension card in `chrome://extensions`.
 
+## Run locally in Firefox
+
+From the repository root, run `npx.cmd web-ext run` on Windows (or
+`npx web-ext run` on other platforms). Firefox uses the manifest's ordered
+background scripts; Chrome uses its background service worker. The shared
+manifest requires Chrome 121 or newer.
+
 ## Custom banlist JSON
 
 A single object, an array of objects, or an object with a `banlists` array is accepted:

@@ -1,6 +1,10 @@
 "use strict";
 
-importScripts("bundled-banlists.js", "enhancer-core.js", "settings-store.js");
+// Chromium loads this file as a worker. Firefox loads the ordered background
+// scripts from the manifest in an event page, where importScripts is absent.
+if (typeof importScripts === "function") {
+  importScripts("bundled-banlists.js", "enhancer-core.js", "settings-store.js");
+}
 
 const store = DBEnhancerSettingsStore.create({
   core: DBEnhancerCore,

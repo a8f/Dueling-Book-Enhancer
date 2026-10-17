@@ -5,7 +5,7 @@ const vm = require("node:vm");
 const { test } = require("node:test");
 
 // Actual worker and clients in separate worlds, with asynchronous storage.
-function harness() {
+function harness(environment = "worker") {
   let stored;
   let receive;
   const storageListeners = [];
@@ -27,8 +27,16 @@ function harness() {
     onChanged: { addListener: callback => storageListeners.push(callback) }
   } };
   const worker = vm.createContext({ chrome, console });
-  worker.importScripts = (...paths) => paths.forEach(path => vm.runInContext(fs.readFileSync(require.resolve("../" + path), "utf8"), worker));
-  vm.runInContext(fs.readFileSync(require.resolve("../background.js"), "utf8"), worker);
+  const load = path => vm.runInContext(fs.readFileSync(require.resolve("../" + path), "utf8"), worker);
+  const background = require("../manifest.json").background;
+  if (environment === "event-page") {
+    // Firefox's background page has window and no worker importScripts API.
+    worker.window = worker;
+    background.scripts.forEach(load);
+  } else {
+    worker.importScripts = (...paths) => paths.forEach(load);
+    load(background.service_worker);
+  }
   function client(url) {
     const clientChrome = { ...chrome, runtime: { ...runtime,
       sendMessage(message, respond) { receive(message, { id: runtime.id, url }, respond); }
@@ -61,6 +69,24 @@ test("worker serializes commands from multiple tabs and merges stale options cha
   assert.equal(stored.deckCardpools[42].value, "tcg");
   assert.equal(stored.deckCardpools[43].id, "dbx-custom-test");
   assert.ok(stored.customBanlists.length > 0, "worker loads bundled defaults without window");
+});
+
+test("Firefox event-page manifest starts the settings writer without importScripts", async () => {
+  const h = harness("event-page");
+  const options = h.client("chrome-extension://extension-test/options.html").api;
+  const site = h.client("https://duelingbook.com/").api;
+  const snapshot = await options.execute({ type: "get-settings" });
+  assert.ok(snapshot.customBanlists.length > 0, "event page loads bundled defaults");
+  const edited = structuredClone(snapshot);
+  edited.showGridLines = false;
+  await Promise.all([
+    site.execute({ type: "save-rps-mode", mode: "automatic" }),
+    site.execute({ type: "save-deck-cardpool", deckId: 42, cardpool: { kind: "native", value: "tcg" } }),
+    options.execute({ type: "update-preferences", changes: require("../settings-store.js").changes(snapshot, edited) })
+  ]);
+  assert.equal(h.read().autoStartRps, true);
+  assert.equal(h.read().showGridLines, false);
+  assert.equal(h.read().deckCardpools[42].value, "tcg");
 });
 
 test("host updates honor preserve-last-used and stale options preserve newer host fields", async () => {
