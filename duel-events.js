@@ -56,6 +56,7 @@
     let gameGeneration = 0;
 
     function report(error) {
+      try { page.DBEnhancerDebug?.error("duel-rule-error", error); } catch (_) { /* optional diagnostics */ }
       try { page.console.warn("[Dueling Book Enhancer] Duel rule failed.", error); } catch (_) { /* optional console */ }
     }
 
@@ -117,6 +118,7 @@
 
     function publish(type, player, message, stage = "execute", isLive = live()) {
       const eventSequence = ++sequence;
+      try { page.DBEnhancerDebug?.record("duel-event", { type, stage, play: message.play || null, live: isLive }); } catch (_) {}
       const listeners = Array.from(rules.values()).filter(rule =>
         (rule.when.stage || "execute") === stage && (rule.includeNonLive || isLive));
       if (!listeners.length) return;
@@ -183,7 +185,11 @@
               record.inline ? record.liveAtReceipt || live() : live());
           } catch (error) { report(error); }
         }
-        return callback.apply(receiver, args);
+        try { return callback.apply(receiver, args); }
+        catch (error) {
+          try { page.DBEnhancerDebug?.error("native-queue-error", error, { play: record.message.play || null }); } catch (_) {}
+          throw error;
+        }
       } finally { if (outermost) activeMessages.delete(record.message); }
     }
 
@@ -245,15 +251,21 @@
                 return function queuedDuelEvent() { return execute(record, callback, this, arguments); };
               }));
             }
-            queue.push = pushActions;
+            // Observation is optional: a non-writable queue must still reach
+            // the native dispatcher exactly once.
+            try { queue.push = pushActions; }
+            catch (error) { report(error); return original.apply(this, arguments); }
+            if (queue.push !== pushActions) return original.apply(this, arguments);
             enqueueing = record;
             try { return original.apply(this, arguments); }
             finally {
               enqueueing = previous;
-              if (queue.push === pushActions) {
-                if (descriptor) Object.defineProperty(queue, "push", descriptor);
-                else delete queue.push;
-              }
+              try {
+                if (queue.push === pushActions) {
+                  if (descriptor) Object.defineProperty(queue, "push", descriptor);
+                  else delete queue.push;
+                }
+              } catch (error) { report(error); }
             }
           } finally { if (!existing) dispatches.delete(message); }
         }
@@ -282,7 +294,11 @@
                 try { publish(type, player, message); } catch (error) { report(error); }
               }
             }
-            return original.apply(this, arguments);
+            try { return original.apply(this, arguments); }
+            catch (error) {
+              try { page.DBEnhancerDebug?.error("native-handler-error", error, { name, play: message && message.play || null }); } catch (_) {}
+              throw error;
+            }
           } finally { if (outermost) activeMessages.delete(message); }
         }
         try {

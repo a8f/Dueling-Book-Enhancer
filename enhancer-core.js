@@ -156,7 +156,7 @@
       visibleRooms: visibleRooms, roomOrder: ROOM_DEFINITIONS.map(room => room.id),
       hostDefaults: { format: "au", type: "s", rules: "*", duelNote: "", duelPassword: "", watching: true, classic: false, tagDuel: false, watchNote: "", watchPassword: "", preserveLastUsed: false },
       rememberCardList: true, deckCardpools: {}, showGridLines: true,
-      rpsEnhancements: true, autoStartRps: false, autoPickRps: false,
+      rpsEnhancements: true, autoStartRps: false, autoPickRps: false, autoGoFirst: false,
       autoPayActivationCosts: false, battleDamageConfirmation: true, autoShuffleHand: false,
       autoShuffleAfterDraw: false,
       automationLists: [],
@@ -301,6 +301,7 @@
     result.rememberCardList = safe.rememberCardList !== false;
     result.showGridLines = safe.showGridLines !== false;
     result.autoPickRps = safe.autoPickRps === true;
+    result.autoGoFirst = safe.autoGoFirst === true;
     result.rpsEnhancements = safe.rpsEnhancements !== false;
     result.autoPayActivationCosts = safe.autoPayActivationCosts === true;
     result.autoShuffleHand = safe.autoShuffleHand === true;

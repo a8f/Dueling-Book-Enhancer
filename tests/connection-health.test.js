@@ -41,6 +41,26 @@ function setup() {
   };
 }
 
+test("turn changes warn while unrelated opponent traffic continues, and matching echoes clear them", () => {
+  const h = setup();
+  for (const play of ["End turn", "Start turn"]) {
+    h.send({ action: "Duel", play });
+    h.advance(10000);
+    h.receive({ action: "Duel", play: "Draw card", username: "Opponent" });
+    assert.equal(h.status().reason, "action");
+    h.receive({ action: "Duel", play, username: "Local" });
+    h.feature.tick();
+    assert.equal(h.status().state, "healthy");
+  }
+});
+
+test("post-send observer failure preserves a successful native send", () => {
+  const h = setup();
+  Object.defineProperty(h.page, "duelId", { get() { throw new Error("observer unavailable"); } });
+  assert.equal(h.send({ action: "Duel", play: "End turn" }), "native result");
+  assert.equal(h.page.websocket.sent.length, 1);
+});
+
 test("socket failures and browser offline show a warning, recovery hides it", () => {
   const h = setup();
   assert.equal(h.banners.length, 0);

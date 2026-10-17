@@ -18,6 +18,30 @@ function select(values) {
   };
 }
 
+test("non-default custom sorting counts copies and completes without falling back to native sorting", () => {
+  const settings = core.createDefaultSettings();
+  settings.customSort.groups.reverse();
+  let button, initialized = 0, unsaved = 0, fallback = 0;
+  const rail = { querySelectorAll: () => [], appendChild(element) { element.parentElement = rail; } };
+  const sort = { parentElement: rail, style: {} };
+  const deck = { querySelector: selector => selector.includes("sort_btn") ? sort : null,
+    querySelectorAll: () => [], contains: () => true };
+  const page = { deck_filled_arr: [{ name: " Alpha ", card_type: "Monster" }, { name: "alpha", card_type: "Monster" }],
+    side_filled_arr: [], extra_filled_arr: [], sortCards2: () => 0,
+    initializeDeckCards() { initialized++; }, setUnsavedChanges() { unsaved++; }, sortDeck() { fallback++; },
+    getComputedStyle: () => ({ top: "10px", height: "27px" }) };
+  const feature = createSorting({ window: page, core, getSettings: () => settings, isVisible: () => true,
+    document: { getElementById: id => id === "deck_constructor" ? deck : null,
+      querySelector: () => null, querySelectorAll: () => [],
+      createElement() { return button = { style: {}, setAttribute() {}, addEventListener(type, handler) { this[type] = handler; } }; } } });
+  feature.initialize();
+  button.click({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(fallback, 0);
+  assert.equal(initialized, 1);
+  assert.equal(unsaved, 1);
+  assert.deepEqual(page.deck_filled_arr.map(card => card.dbx_copy_count), [2, 2]);
+});
+
 test("idle room checks do not move host options and still repair native reordering", () => {
   const settings = core.createDefaultSettings();
   const formats = select(settings.roomOrder.filter(id => id !== "ar").reverse().concat("so"));

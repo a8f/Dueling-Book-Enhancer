@@ -10,7 +10,7 @@
   const echoed = new Set(["Draw card", "Normal Summon", "Flip Summon", "Activate ST",
     "Set monster", "Set ST", "To GY", "To hand", "Banish", "Mill", "Reveal",
     "Attack", "Attack directly", "Life points", "Shuffle hand", "Shuffle deck",
-    "Add counter", "Remove counter", "Coin", "Die", "Declare"]);
+    "Add counter", "Remove counter", "Coin", "Die", "Declare", "End turn", "Start turn"]);
   let socket = null;
   let originalSend = null;
   let sendWrapper = null;
@@ -44,6 +44,8 @@
     syncDuel();
     const message = parse(event.data);
     if (!message || typeof message.action !== "string") return;
+    context.reportIssue?.("socket-receive", { action: message.action, play: message.play || null,
+      actor: message.username ? message.username === page.username ? "self" : "other" : null });
     lastReceive = now();
     failed = false;
     if (message.action === "Heartbeat") heartbeat = null;
@@ -80,18 +82,28 @@
     const nativeSend = originalSend;
     sendWrapper = function sendWithHealthTracking(data) {
       // Observe actual sends, including resend(), without modifying native payloads.
-      const result = nativeSend.apply(this, arguments);
-      syncDuel();
-      const message = parse(data);
-      if (message && message.action === "Heartbeat" && heartbeat == null) heartbeat = now();
-      if (message && message.action === "Duel" && echoed.has(message.play) && liveDuel()) {
-        pending.push({ play: message.play,
-          // Fast consecutive draws/mills can send the same stale top-card ID;
-          // the server advances the deck and echoes a different instance ID.
-          card: !["Shuffle deck", "Draw card", "Mill"].includes(message.play) &&
-            typeof message.card === "number" ? message.card : null, time: now() });
-        // Bound memory during a long stall; preserve the oldest unanswered action.
-        if (pending.length > 100) pending.pop();
+      let result;
+      try { result = nativeSend.apply(this, arguments); }
+      catch (error) {
+        context.reportIssue?.("socket-send-error", { message: String(error.message || error), readyState: this.readyState });
+        throw error;
+      }
+      try {
+        syncDuel();
+        const message = parse(data);
+        if (message) context.reportIssue?.("socket-send", { action: message.action, play: message.play || null });
+        if (message && message.action === "Heartbeat" && heartbeat == null) heartbeat = now();
+        if (message && message.action === "Duel" && echoed.has(message.play) && liveDuel()) {
+          pending.push({ play: message.play,
+            // Fast consecutive draws/mills can send the same stale top-card ID;
+            // the server advances the deck and echoes a different instance ID.
+            card: !["Shuffle deck", "Draw card", "Mill"].includes(message.play) &&
+              typeof message.card === "number" ? message.card : null, time: now() });
+          // Bound memory during a long stall; preserve the oldest unanswered action.
+          if (pending.length > 100) pending.pop();
+        }
+      } catch (error) {
+        context.reportIssue?.("connection-observer-error", { message: String(error.message || error) });
       }
       return result;
     };
@@ -99,6 +111,9 @@
   }
 
   function render(next) {
+    if (next.state !== status.state || next.reason !== status.reason) {
+      context.reportIssue?.(next.message ? "connection-stalled" : "connection-status", { ...next });
+    }
     status = next;
     if (!next.message) {
       if (banner) banner.hidden = true;

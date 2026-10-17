@@ -5,7 +5,7 @@
   const CHANNEL = "dueling-book-enhancer-v1";
   const COMMAND_EVENT = "dueling-book-enhancer-v1-command";
   const SETTINGS_EVENT = "dueling-book-enhancer-v1-settings";
-  const ENHANCER_VERSION = "1.1.5";
+  const ENHANCER_VERSION = "1.1.6";
   const seenSettingsDeliveries = new Set();
   let commandSequence = 0;
   let settings = core ? core.createDefaultSettings() : null;
@@ -47,22 +47,35 @@
 
   function invoke(feature, method, ...args) {
     try { if (feature[method]) feature[method](...args); }
-    catch (error) { console.error("[Dueling Book Enhancer] Feature " + feature.id + " failed during " + method, error); }
+    catch (error) {
+      if (window.DBEnhancerDebug) window.DBEnhancerDebug.error("feature-error", error, { feature: feature.id, method });
+      else console.error("[Dueling Book Enhancer] Feature " + feature.id + " failed during " + method, error);
+    }
   }
 
-  const context = { window, document, core, postToBridge, isVisible, getSettings: () => settings, isStarted: () => started };
+  const context = { window, document, core, postToBridge, isVisible, getSettings: () => settings, isStarted: () => started,
+    reportIssue: (type, details) => window.DBEnhancerDebug?.record(type, details) };
   for (const [id, create] of Object.entries(window.DBEnhancerFeatures)) {
-    features.push({ id, ...create({ ...context, lifecycle: window.DBEnhancerLifecycle.create(window) }) });
+    try { features.push({ id, ...create({ ...context, lifecycle: window.DBEnhancerLifecycle.create(window) }) }); }
+    catch (error) {
+      window.DBEnhancerDebug?.error("feature-error", error, { feature: id, method: "create" });
+      console.error("[Dueling Book Enhancer] Feature " + id + " failed during create", error);
+    }
+  }
+
+  function installDuelEvents() {
+    try { if (window.DBEnhancerDuelEvents) window.DBEnhancerDuelEvents.install(); }
+    catch (error) { window.DBEnhancerDebug?.error("duel-hooks-error", error); }
   }
 
   function initializeDomFeatures() {
     if (started) return;
     started = true;
     features.forEach(feature => invoke(feature, "initialize"));
-    if (window.DBEnhancerDuelEvents) window.DBEnhancerDuelEvents.install();
+    installDuelEvents();
     window.setInterval(() => {
       features.forEach(feature => invoke(feature, "tick"));
-      if (window.DBEnhancerDuelEvents) window.DBEnhancerDuelEvents.install();
+      installDuelEvents();
     }, 500);
   }
 
@@ -96,6 +109,7 @@
   postToBridge("request-settings");
   window.DBEnhancerDiagnostics = {
     version: ENHANCER_VERSION,
+    runtime: () => ({ started, settingsReceived, features: features.map(feature => feature.id) }),
     duelEvents: () => window.DBEnhancerDuelEvents ? window.DBEnhancerDuelEvents.diagnostics() : null,
     ...Object.assign({}, ...features.map(feature => feature.diagnostics || {}))
   };

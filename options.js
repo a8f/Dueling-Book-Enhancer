@@ -930,6 +930,7 @@
     document.getElementById("show-grid-lines").checked =
       currentSettings.showGridLines;
     document.getElementById("rps-enhancements").checked = currentSettings.rpsEnhancements;
+    document.getElementById("auto-go-first").checked = currentSettings.autoGoFirst;
     document.getElementById("auto-pay-activation-costs").checked = currentSettings.autoPayActivationCosts;
     renderAutomationLists();
     document.getElementById("battle-damage-confirmation").checked = currentSettings.battleDamageConfirmation;
@@ -980,6 +981,7 @@
     candidate.showGridLines =
       document.getElementById("show-grid-lines").checked;
     candidate.rpsEnhancements = document.getElementById("rps-enhancements").checked;
+    candidate.autoGoFirst = document.getElementById("auto-go-first").checked;
     candidate.autoPayActivationCosts = document.getElementById("auto-pay-activation-costs").checked;
     candidate.automationLists = readAutomationLists();
     candidate.battleDamageConfirmation = document.getElementById("battle-damage-confirmation").checked;
