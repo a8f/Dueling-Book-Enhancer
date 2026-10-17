@@ -25,6 +25,11 @@ node card-rule-extractor/extract-card-rules.mjs 09411399 --ruleset edison --writ
 ```
 
 There is no hardcoded destination. Multiple IDs can be space- or comma-separated.
+You can also supply a quoted card name or repeat `--name "card name"`, including
+in commands that write a list. Names are resolved from the simulator's local
+`cards.cdb`: full names ignore case and spacing, and unique partial names work.
+Quote each name separately when mixing names and IDs. Ambiguous names return
+candidate names/passcodes and prevent the batch write; no card is chosen silently.
 The optional personal-rules checkout must also exist for the example above.
 Full usage and review policy: [extractor README](../card-rule-extractor/README.md).
 
