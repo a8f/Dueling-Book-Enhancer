@@ -1,8 +1,8 @@
 "use strict";
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const core = require("../enhancer-core.js");
-const { create, changes } = require("../settings-store.js");
+const core = require("../extension/shared/enhancer-core.js");
+const { create, changes } = require("../extension/shared/settings-store.js");
 
 test("existing settings get duel-focused shortcuts without changing feature preferences", () => {
   const existing = core.createDefaultSettings();

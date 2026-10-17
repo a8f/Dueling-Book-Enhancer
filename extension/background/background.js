@@ -3,7 +3,7 @@
 // Chromium loads this file as a worker. Firefox loads the ordered background
 // scripts from the manifest in an event page, where importScripts is absent.
 if (typeof importScripts === "function") {
-  importScripts("bundled-banlists.js", "enhancer-core.js", "settings-store.js");
+  importScripts("../data/bundled-banlists.js", "../shared/enhancer-core.js", "../shared/settings-store.js");
 }
 
 const store = DBEnhancerSettingsStore.create({
@@ -27,7 +27,7 @@ const store = DBEnhancerSettingsStore.create({
 // Reuse our settings tab and window when opening from the quick-settings popup.
 let openingSettings = null;
 async function openSettings(section) {
-  const url = chrome.runtime.getURL("options.html");
+  const url = chrome.runtime.getURL("options/options.html");
   let existing;
   if (chrome.runtime.getContexts) {
     const contexts = await chrome.runtime.getContexts({ contextTypes: ["TAB"] });
@@ -49,8 +49,8 @@ async function openSettings(section) {
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message || message.channel !== "dbx-settings" || sender.id !== chrome.runtime.id) return;
-  const optionsPage = sender.url?.split("#")[0] === chrome.runtime.getURL("options.html");
-  const popup = sender.url === chrome.runtime.getURL("popup.html");
+  const optionsPage = sender.url?.split("#")[0] === chrome.runtime.getURL("options/options.html");
+  const popup = sender.url === chrome.runtime.getURL("popup/popup.html");
   const site = /^https:\/\/(www\.)?duelingbook\.com\//.test(sender.url || "");
   if (!optionsPage && !popup && !site) return;
   if (message.command?.type === "open-settings") {

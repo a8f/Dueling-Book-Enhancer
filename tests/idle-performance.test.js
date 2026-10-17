@@ -1,10 +1,10 @@
 "use strict";
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const core = require("../enhancer-core.js");
-const createSorting = require("../features/sorting.js");
-const createRooms = require("../features/rooms.js");
-const createCardPools = require("../features/card-pools.js");
+const core = require("../extension/shared/enhancer-core.js");
+const createSorting = require("../extension/page/features/sorting.js");
+const createRooms = require("../extension/page/features/rooms.js");
+const createCardPools = require("../extension/page/features/card-pools.js");
 
 function select(values) {
   return {

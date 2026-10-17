@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const { create } = require("../lifecycle.js");
+const { create } = require("../extension/page/lifecycle.js");
 
 test("observers reconnect to replaced elements without accumulating old observers", () => {
   const observers = [];

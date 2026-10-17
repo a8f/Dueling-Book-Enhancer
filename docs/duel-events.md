@@ -1,9 +1,9 @@
 # Duel event features
 
-`duel-events.js` exposes `window.DBEnhancerDuelEvents` in the page's MAIN world.
+`extension/page/duel-events.js` exposes `window.DBEnhancerDuelEvents` in the page's MAIN world.
 Register features from a script loaded after it (add the script to the MAIN
-content scripts in `manifest.json`). Registrations can happen before the site
-finishes loading. `content.js` installs available hooks and checks every 500 ms
+content scripts in `extension/manifest.json`). Registrations can happen before the site
+finishes loading. `extension/page/content.js` installs available hooks and checks every 500 ms
 for dispatchers and handlers loaded or replaced later. The battle damage feature
 registers confirmation and invalidation rules using this API. All incoming `Duel` messages reaching the site's
 `duelResponse` dispatcher are observable, including unknown future `play` names.
@@ -158,6 +158,6 @@ Inspect installed/missing hooks, event count, and registered rule IDs with
 `DBEnhancerDuelEvents.diagnostics()` in the page console.
 
 Run the framework and coverage checks with
-`node --test tests/duel-events.test.js tests/duel-event-coverage.test.js`.
+`node --test tests/integration/duel-events.test.js tests/integration/duel-event-coverage.test.js`.
 Coverage tests derive all message names from the local native dispatchers and
 exercise both players, all queued cases, signal variants, and unknown messages.

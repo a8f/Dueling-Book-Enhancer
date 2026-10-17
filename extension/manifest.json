@@ -15,7 +15,7 @@
   },
   "action": {
     "default_title": "Dueling Book Enhancer",
-    "default_popup": "popup.html",
+    "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
       "19": "icons/icon-19.png",
@@ -27,7 +27,7 @@
     }
   },
   "options_ui": {
-    "page": "options.html",
+    "page": "options/options.html",
     "open_in_tab": true
   },
   "content_scripts": [
@@ -37,27 +37,27 @@
         "https://www.duelingbook.com/*"
       ],
       "js": [
-        "bundled-banlists.js",
-        "enhancer-core.js",
-        "duel-events.js",
-        "battle-damage.js",
-        "activation-costs.js",
-        "lifecycle.js",
-        "features/debugging.js",
-        "features/appearance.js",
-        "features/rooms.js",
-        "features/card-pools.js",
-        "features/sorting.js",
-        "features/rps.js",
-        "features/turn-order.js",
-        "features/battle-damage.js",
-        "features/activation-costs.js",
-        "features/hand-shuffle.js",
-        "features/connection-health.js",
-        "content.js"
+        "data/bundled-banlists.js",
+        "shared/enhancer-core.js",
+        "page/duel-events.js",
+        "shared/battle-damage.js",
+        "shared/activation-costs.js",
+        "page/lifecycle.js",
+        "page/features/debugging.js",
+        "page/features/appearance.js",
+        "page/features/rooms.js",
+        "page/features/card-pools.js",
+        "page/features/sorting.js",
+        "page/features/rps.js",
+        "page/features/turn-order.js",
+        "page/features/battle-damage.js",
+        "page/features/activation-costs.js",
+        "page/features/hand-shuffle.js",
+        "page/features/connection-health.js",
+        "page/content.js"
       ],
       "css": [
-        "content.css"
+        "page/content.css"
       ],
       "run_at": "document_start",
       "world": "MAIN"
@@ -68,20 +68,20 @@
         "https://www.duelingbook.com/*"
       ],
       "js": [
-        "settings-client.js",
-        "bridge.js"
+        "shared/settings-client.js",
+        "bridge/bridge.js"
       ],
       "run_at": "document_start",
       "world": "ISOLATED"
     }
   ],
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "background/background.js",
     "scripts": [
-      "bundled-banlists.js",
-      "enhancer-core.js",
-      "settings-store.js",
-      "background.js"
+      "data/bundled-banlists.js",
+      "shared/enhancer-core.js",
+      "shared/settings-store.js",
+      "background/background.js"
     ]
   }
 }

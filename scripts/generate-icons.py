@@ -11,7 +11,7 @@ import cairosvg
 from PIL import Image
 
 
-icon_dir = Path(__file__).resolve().parent.parent / "icons"
+icon_dir = Path(__file__).resolve().parent.parent / "extension" / "icons"
 source = icon_dir / "millennium-eye.svg"
 # Supersampling keeps curves smooth at toolbar sizes.
 rendered = cairosvg.svg2png(url=str(source), output_width=1024, output_height=1024)

@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
-const { createRuntime } = require("../duel-events.js");
+const { createRuntime } = require("../../extension/page/duel-events.js");
 
 const self = { username: "Local" };
 const opponent = { username: "Opponent" };
@@ -47,11 +47,11 @@ runtime.register({ id: "observe", run: event => events.push(event) });
 
 // Exercise the site's real dispatcher to verify events follow execution, not
 // network receipt, and resolve identities after preceding queued actions.
-const native = fs.readFileSync(require.resolve("../duelingbook/duel.js"), "utf8");
+const native = fs.readFileSync(require.resolve("../../duelingbook/duel.js"), "utf8");
 vm.createContext(page);
 vm.runInContext(native.slice(native.indexOf("function duelResponse2("), native.indexOf("function beginNextDuel(")), page);
 function capture(file, play) {
-  const har = JSON.parse(fs.readFileSync(require.resolve("../duelingbook/network-captures/" + file), "utf8"));
+  const har = JSON.parse(fs.readFileSync(require.resolve("../../duelingbook/network-captures/" + file), "utf8"));
   for (const entry of har.log.entries) {
     for (const frame of entry._webSocketMessages || []) {
       if (frame.type !== "receive") continue;
@@ -201,11 +201,11 @@ Promise.resolve().then(() => {
 });
 
 const browser = {};
-vm.runInNewContext(fs.readFileSync(require.resolve("../duel-events.js"), "utf8"), { window: browser });
+vm.runInNewContext(fs.readFileSync(require.resolve("../../extension/page/duel-events.js"), "utf8"), { window: browser });
 assert.equal(typeof browser.DBEnhancerDuelEvents.register, "function");
 
 // Manifest guarantees the runtime exists before content initialization.
-const manifest = JSON.parse(fs.readFileSync(require.resolve("../manifest.json"), "utf8"));
+const manifest = JSON.parse(fs.readFileSync(require.resolve("../../extension/manifest.json"), "utf8"));
 const scripts = manifest.content_scripts.find(script => script.world === "MAIN").js;
-assert.ok(scripts.indexOf("duel-events.js") < scripts.indexOf("content.js"));
+assert.ok(scripts.indexOf("page/duel-events.js") < scripts.indexOf("page/content.js"));
 console.log("Duel event framework tests passed.");

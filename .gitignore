@@ -1,0 +1,16 @@
+# Generated release packages and browser/tool output.
+/dist/
+/web-ext-artifacts/
+/extension/web-ext-artifacts/
+
+# Local reference sources and captures (see docs/testing.md).
+/duelingbook/
+
+# Independent optional repositories; these are not extension dependencies.
+/card-rule-extractor/
+/personal-rules/
+
+# Local dependencies and Python caches.
+node_modules/
+__pycache__/
+*.pyc

@@ -1,10 +1,10 @@
 "use strict";
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const costs = require("../activation-costs.js");
-const createFeature = require("../features/activation-costs.js");
-const { createRuntime } = require("../duel-events.js");
-const core = require("../enhancer-core.js");
+const costs = require("../extension/shared/activation-costs.js");
+const createFeature = require("../extension/page/features/activation-costs.js");
+const { createRuntime } = require("../extension/page/duel-events.js");
+const core = require("../extension/shared/enhancer-core.js");
 
 const detect = (effect, cardType = "Spell", type = "Normal") => costs.detect({ effect, cardType, type });
 

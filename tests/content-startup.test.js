@@ -32,15 +32,15 @@ function start(readyState = "loading", failingFeature = false) {
     CustomEvent: function(type, options) { this.type = type; this.detail = options.detail; }
   });
   page.window = page;
-  const scripts = require("../manifest.json").content_scripts[0].js;
+  const scripts = require("../extension/manifest.json").content_scripts[0].js;
   for (const script of scripts) {
-    if (script === "content.js" && failingFeature) {
+    if (script === "page/content.js" && failingFeature) {
       page.DBEnhancerFeatures.broken = () => ({
         initialize() { throw new Error("broken initialization"); },
         tick() { throw new Error("broken health check"); }
       });
     }
-    vm.runInContext(fs.readFileSync(require.resolve("../" + script), "utf8"), page, { filename: script });
+    vm.runInContext(fs.readFileSync(require.resolve("../extension/" + script), "utf8"), page, { filename: script });
   }
   return {
     page, errors, sent, toggles, intervals,

@@ -2,8 +2,8 @@
 
 const assert = require("node:assert/strict");
 global.window = {};
-require("../bundled-banlists.js");
-const core = require("../enhancer-core.js");
+require("../extension/data/bundled-banlists.js");
+const core = require("../extension/shared/enhancer-core.js");
 
 function card(data) {
   return { data: key => data[key] };

@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const fs = require("node:fs");
-const createFeature = require("../features/connection-health.js");
+const createFeature = require("../../extension/page/features/connection-health.js");
 
 class Socket {
   constructor() { this.readyState = 1; this.listeners = {}; this.sent = []; }
@@ -193,7 +193,7 @@ test("commands that wait for other players are not timed; pending storage is bou
 
 test("recorded duel traffic acknowledges the supported commands without false stall warnings", () => {
   for (const filename of ["lots_of_actions.har", "first_real_game.har", "duel_unranked_onegame.har"]) {
-    const capture = JSON.parse(fs.readFileSync(require.resolve("../duelingbook/network-captures/" + filename), "utf8"));
+    const capture = JSON.parse(fs.readFileSync(require.resolve("../../duelingbook/network-captures/" + filename), "utf8"));
     const h = setup();
     let previous = null;
     let tracked = 0;

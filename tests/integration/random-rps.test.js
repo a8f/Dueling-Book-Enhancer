@@ -4,8 +4,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-const createRps = require("../features/rps.js");
-const native = fs.readFileSync(require.resolve("../duelingbook/main.js"), "utf8");
+const createRps = require("../../extension/page/features/rps.js");
+const native = fs.readFileSync(require.resolve("../../duelingbook/main.js"), "utf8");
 const elements = {};
 const sent = [];
 let sample = 0;
@@ -190,7 +190,7 @@ poll();
 assert.equal(sent.length, 10, "hidden RPS cannot submit choices");
 
 // Card contents are centered at y=162 and y=478, scaled from 580px tall.
-const css = fs.readFileSync(require.resolve("../content.css"), "utf8");
+const css = fs.readFileSync(require.resolve("../../extension/page/content.css"), "utf8");
 const modeCss = css.match(/#dbx-auto-rps-control\s*\{([^}]+)\}/)[1];
 const top = Number(modeCss.match(/top:\s*([\d.]+)px/)[1]);
 const height = Number(modeCss.match(/height:\s*([\d.]+)px/)[1]);

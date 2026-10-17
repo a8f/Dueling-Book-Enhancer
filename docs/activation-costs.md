@@ -10,7 +10,7 @@ activations**. Monster effects, Pendulum/Skill activations, and native Apply
 effect actions never trigger payment. Negation does not refund an activation
 cost. Other costs, including discards and Tributes, remain manual.
 
-`activation-costs.js` is a pure parser. Supported patterns include:
+`extension/shared/activation-costs.js` is a pure parser. Supported patterns include:
 
 - `Pay 1000 LP; ...`, including a preceding activation condition.
 - `Pay 800 LP, then target ...; ...`.
@@ -34,7 +34,7 @@ targeting: [Konami's PSCT explanation](https://www.yugioh-card.com/eu/play/under
 [Solemn Judgment](https://www.db.yugioh-card.com/yugiohdb/card_search.action?cid=4861&ope=2&request_locale=en)
 provides a half-LP activation example.
 
-`features/activation-costs.js` reads the native card front or supplied public
+`extension/page/features/activation-costs.js` reads the native card front or supplied public
 card data at event execution and uses the duel framework's guarded native LP
 action. Payments therefore synchronize through Duelingbook's server and normal
 LP log. Fixed costs must leave positive LP. Replays, spectating, automatic
@@ -51,5 +51,5 @@ cost manually. Use the native LP controls to correct a payment if necessary.
 There is no hosted database or additional network request. Future exceptions
 can extend the parser with reviewed rules if needed. Diagnostics are available
 through `DBEnhancerDiagnostics.activationCosts()` (last payment/skip and pending
-status). Run `node --test` for parser, queued native activation, settings and
+status). Run `npm test` for parser, queued native activation, settings and
 regression checks; testing the unpacked extension on the live site is separate.

@@ -3,9 +3,9 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const fs = require("node:fs");
 const vm = require("node:vm");
-const core = require("../enhancer-core.js");
-const store = require("../settings-store.js");
-const createFeature = require("../features/turn-order.js");
+const core = require("../../extension/shared/enhancer-core.js");
+const store = require("../../extension/shared/settings-store.js");
+const createFeature = require("../../extension/page/features/turn-order.js");
 
 test("go-first preference is opt-in, sanitized, and persists through preference updates", () => {
   const defaults = core.createDefaultSettings();
@@ -33,7 +33,7 @@ test("native First selection runs once per eligible prompt and honors manual cho
   const sent = [];
   const page = { Send: message => sent.push(message), duelist: true };
   vm.createContext(page);
-  const native = fs.readFileSync(require.resolve("../duelingbook/main.js"), "utf8");
+  const native = fs.readFileSync(require.resolve("../../duelingbook/main.js"), "utf8");
   vm.runInContext(native.slice(native.indexOf("function pickFirst("), native.indexOf("function menuRollOutE(")), page);
   const feature = createFeature({
     window: { getComputedStyle: element => element },
