@@ -31,10 +31,10 @@ To update, replace the extension files, click **Reload** on its card in `chrome:
 From the repository root:
 
 ```sh
-npx web-ext run --source-dir extension
+npx web-ext run
 ```
 
-On Windows PowerShell, use `npx.cmd` in place of `npx`.
+On Windows PowerShell, use `npx.cmd` in place of `npx`. The root `package.json` configures `web-ext` to load `extension/`.
 
 ## Development
 
