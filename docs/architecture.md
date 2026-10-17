@@ -21,6 +21,7 @@ so the same module works in a page, a service worker and Node tests.
 | `rps.js` | RPS controls, saved modes and per-duel selection state |
 | `battle-damage.js` | Incoming attack confirmation UI and pending battle lifecycle |
 | `activation-costs.js` | Opt-in spell/trap activation LP payments |
+| `card-automation.js` | Imported-rule card-menu actions and a generic position/resolution panel |
 | `hand-shuffle.js` | Opt-in turn-draw shuffle and conservative batching of other draws |
 | `connection-health.js` | Socket, heartbeat, server silence and duel response monitoring |
 
@@ -77,6 +78,10 @@ See [duel events](duel-events.md) for event timing, filtering and action helpers
 see [battle damage](battle-damage.md). It loads before the feature UI.
 `activation-costs.js` contains the conservative, pure LP cost parser used by
 `features/activation-costs.js`; see [activation costs](activation-costs.md).
+`card-automation.js` owns the generic card procedure runtime. Lists are validated
+as data in `enhancer-core.js` and persist through the existing settings writer;
+no page command can import or enable them. See [card automation](card-automation.md)
+for optional imports, execution gates, native Deck search flow and limitations.
 
 To add a page feature, create a factory with `initialize`, optional `tick`,
 `settingsChanged`, `settingsKeys` and `diagnostics`, then load it before

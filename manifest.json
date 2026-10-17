@@ -7,6 +7,10 @@
   "permissions": [
     "storage"
   ],
+  "optional_host_permissions": [
+    "https://raw.githubusercontent.com/*",
+    "http://127.0.0.1/*"
+  ],
   "action": {
     "default_title": "Open Dueling Book Enhancer settings"
   },
@@ -26,6 +30,7 @@
         "duel-events.js",
         "battle-damage.js",
         "activation-costs.js",
+        "card-automation.js",
         "lifecycle.js",
         "features/appearance.js",
         "features/rooms.js",
@@ -34,6 +39,7 @@
         "features/rps.js",
         "features/battle-damage.js",
         "features/activation-costs.js",
+        "features/card-automation.js",
         "features/hand-shuffle.js",
         "features/connection-health.js",
         "content.js"

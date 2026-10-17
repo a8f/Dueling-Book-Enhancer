@@ -26,6 +26,8 @@ Version 1.1.5 is a local Chrome extension for customizing Dueling Book without r
 - Opt in to shuffling your hand after your first draw in your own Draw Phase, once per turn, under Automation in settings.
 - Optionally batch any draws before shuffling, with an aggressiveness slider from cautious to fast. The default waits 1 second after the last draw and 0.32 seconds with the pointer at least 44 pixels from the deck/draw menu. Manual shuffling immediately cancels the pending automatic shuffle, as do hand edits, leaving the tab, or 20 seconds of waiting. This delayed option takes priority over immediate turn-draw shuffling.
 - Group RPS, battle damage, and spell/trap LP costs under Automation in settings; battle damage suggestions can be disabled independently.
+- Import optional card rules by duel format from JSON files, strings, or public raw GitHub URLs. The generic engine handles choices, activation costs, native actions, and optional opponent thumbs-up. No card-effect lists are included in the extension checkout or downloaded automatically. See [card automation](docs/card-automation.md).
+- Iterate on local rule JSON without publishing: run `node scripts/serve-rule-lists.mjs personal-rules`, then watch a printed URL under Automation → Local rules development. Saved valid edits update live while settings stays open.
 - Opt in to automatic LP cost payment for your own spell/trap activations. Detects clear fixed and half-LP costs in modern text and simple older Edison wording; ambiguous effects, monster effects, upkeep, and Apply effect actions stay manual. See [activation costs](docs/activation-costs.md).
 - Confirm battle damage you owe with an OK/Cancel popup using current board ATK/DEF, including your own attacks into stronger monsters. Zero-damage battles stay quiet. LP changes only after OK; cancel stopped attacks or special damage effects.
 - Update the open damage popup for Honest/Kalut hand activations or discards, counting each copy once and reconciling matching board stat edits. Effects are assumed to resolve; cancel if negated.
@@ -45,6 +47,11 @@ battle damage popup uses this framework and a separate, extensible calculator;
 see [battle damage](docs/battle-damage.md) for future effect integration.
 
 ## Install in Chrome
+
+For a clean runtime-only build, run `node scripts/build-extension.mjs` and load
+the printed directory. The build does not include or require optional rules
+repositories, local captures, tests or development files. Rules can be imported
+after the extension is loaded.
 
 1. Unzip the download.
 2. Open `chrome://extensions`.

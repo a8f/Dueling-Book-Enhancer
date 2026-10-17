@@ -931,6 +931,7 @@
       currentSettings.showGridLines;
     document.getElementById("rps-enhancements").checked = currentSettings.rpsEnhancements;
     document.getElementById("auto-pay-activation-costs").checked = currentSettings.autoPayActivationCosts;
+    renderAutomationLists();
     document.getElementById("battle-damage-confirmation").checked = currentSettings.battleDamageConfirmation;
     document.getElementById("auto-shuffle-hand").checked = currentSettings.autoShuffleHand;
     document.getElementById("auto-shuffle-after-draw").checked = currentSettings.autoShuffleAfterDraw;
@@ -980,6 +981,7 @@
       document.getElementById("show-grid-lines").checked;
     candidate.rpsEnhancements = document.getElementById("rps-enhancements").checked;
     candidate.autoPayActivationCosts = document.getElementById("auto-pay-activation-costs").checked;
+    candidate.automationLists = readAutomationLists();
     candidate.battleDamageConfirmation = document.getElementById("battle-damage-confirmation").checked;
     candidate.autoShuffleHand = document.getElementById("auto-shuffle-hand").checked;
     candidate.autoShuffleAfterDraw = document.getElementById("auto-shuffle-after-draw").checked;
@@ -1108,6 +1110,180 @@
     });
   });
 
+  let pendingRuleImport = null;
+  let ruleImportGeneration = 0;
+  let localWatchGeneration = 0;
+  let localWatcher = null;
+  const ruleTools = ["rules-import-tools", "rules-local-tools"].map(id => document.getElementById(id));
+  for (const tool of ruleTools) tool.addEventListener("toggle", () => {
+    if (tool.open) for (const other of ruleTools) if (other !== tool) other.open = false;
+  });
+  document.addEventListener("pointerdown", event => {
+    for (const tool of ruleTools) if (tool.open && !tool.contains(event.target)) tool.open = false;
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    for (const tool of ruleTools) if (tool.open) { tool.open = false; tool.querySelector("summary").focus(); }
+  });
+  function requestRulesPermission(permissions) {
+    return new Promise((resolve, reject) => {
+      chrome.permissions.request(permissions, granted => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message));
+        else resolve(granted);
+      });
+    });
+  }
+  function stopLocalWatch(message = "Stopped watching. The last saved rules remain installed.") {
+    localWatchGeneration++;
+    if (localWatcher) localWatcher.stop();
+    localWatcher = null;
+    document.getElementById("automation-list-local-url").disabled = false;
+    document.getElementById("automation-list-watch").disabled = false;
+    document.getElementById("automation-list-watch-stop").hidden = true;
+    document.getElementById("automation-list-watch-status").textContent = message;
+  }
+  document.getElementById("automation-list-watch-stop").addEventListener("click", () => stopLocalWatch());
+  document.getElementById("automation-list-watch").addEventListener("click", async () => {
+    stopLocalWatch("Starting local development…");
+    const generation = localWatchGeneration;
+    const start = document.getElementById("automation-list-watch");
+    const input = document.getElementById("automation-list-local-url");
+    start.disabled = true;
+    input.disabled = true;
+    document.getElementById("automation-list-watch-stop").hidden = false;
+    try {
+      const url = window.DBEnhancerRuleListDownload.normalizeLocalUrl(input.value);
+      const granted = await requestRulesPermission({ origins: ["http://127.0.0.1/*"] });
+      if (generation !== localWatchGeneration) return;
+      if (!granted) throw new Error("Local development permission was not granted.");
+      localWatcher = window.DBEnhancerRuleListWatch.create({
+        core,
+        read: () => window.DBEnhancerRuleListDownload.fetchText(url),
+        async apply(list, isCurrent) {
+          if (!isCurrent()) return;
+          const latest = readSettingsFromForm();
+          latest.automationLists = window.DBEnhancerRuleListWatch.mergeList(latest.automationLists, list);
+          const candidate = latest.automationLists.find(item => item.id === list.id);
+          currentSettings = latest;
+          renderAutomationLists();
+          await saveChanges();
+          const committed = await settingsClient.execute({ type: "get-settings" });
+          const saved = committed.automationLists.find(item => item.id === list.id);
+          if (!saved || core.exportAutomationList(saved) !== core.exportAutomationList(candidate) || saved.enabled !== candidate.enabled) {
+            throw new Error("The updated list was not saved. Check the settings save status.");
+          }
+        },
+        status(message) { document.getElementById("automation-list-watch-status").textContent = message; }
+      });
+      await localWatcher.start();
+    } catch (error) {
+      if (generation === localWatchGeneration) stopLocalWatch("Could not start local development: " + error.message);
+    }
+  });
+  window.addEventListener("pagehide", () => { if (localWatcher) stopLocalWatch("Local development stopped when settings navigated away."); });
+  let ruleListTable = null;
+  function readAutomationLists() {
+    return ruleListTable ? ruleListTable.read(currentSettings.automationLists) : core.copy(currentSettings.automationLists);
+  }
+  function exportRuleList(id) {
+    try {
+      ruleImportGeneration++;
+      const current = readAutomationLists().find(item => item.id === id);
+      const text = document.getElementById("automation-list-json");
+      text.value = core.exportAutomationList(current);
+      text.closest("details").open = true;
+      text.focus();
+      text.select();
+      pendingRuleImport = null;
+      document.getElementById("automation-list-install").hidden = true;
+      document.getElementById("automation-list-status").textContent = "Copy this JSON to share the list. Local enablement is not exported.";
+    } catch (error) { showSavedStatus(error.message); }
+  }
+  function renderAutomationLists() {
+    if (!ruleListTable) ruleListTable = window.DBEnhancerRuleListTable.create({
+      document, container: document.getElementById("automation-list-rows"), core,
+      onChange: saveChanges, onExport: exportRuleList
+    });
+    ruleListTable.render(currentSettings.automationLists);
+  }
+  document.getElementById("automation-list-json").addEventListener("input", () => {
+    ruleImportGeneration++;
+    pendingRuleImport = null;
+    document.getElementById("automation-list-install").hidden = true;
+  });
+  document.getElementById("automation-list-url").addEventListener("input", () => {
+    ruleImportGeneration++;
+    pendingRuleImport = null;
+    document.getElementById("automation-list-install").hidden = true;
+  });
+  function previewRuleImport() {
+    const install = document.getElementById("automation-list-install");
+    install.hidden = true;
+    pendingRuleImport = null;
+    try {
+      const list = core.importAutomationList(document.getElementById("automation-list-json").value);
+      const existing = currentSettings.automationLists.find(item => item.id === list.id);
+      pendingRuleImport = list;
+      document.getElementById("automation-list-status").textContent =
+        `${list.name} ${list.version}: ${list.rules.length} rule(s); formats: ${list.formats.join(", ")}. ` +
+        (existing ? `Replaces ${existing.name} ${existing.version}. ` : "Adds a new list. ") + "Installs disabled. No actions run during import.";
+      install.hidden = false;
+    } catch (error) { document.getElementById("automation-list-status").textContent = "Import failed: " + error.message; }
+  }
+  document.getElementById("automation-list-preview").addEventListener("click", () => {
+    ruleImportGeneration++;
+    previewRuleImport();
+  });
+  document.getElementById("automation-list-file").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const generation = ++ruleImportGeneration;
+    pendingRuleImport = null;
+    document.getElementById("automation-list-install").hidden = true;
+    try {
+      if (file.size > 65536) throw new Error("Rules list exceeds 64 KB.");
+      const text = await file.text();
+      if (generation !== ruleImportGeneration) return;
+      document.getElementById("automation-list-json").value = text;
+      previewRuleImport();
+    } catch (error) {
+      if (generation === ruleImportGeneration) document.getElementById("automation-list-status").textContent = "Import failed: " + error.message;
+    } finally { event.target.value = ""; }
+  });
+  document.getElementById("automation-list-fetch").addEventListener("click", async event => {
+    const button = event.currentTarget;
+    const generation = ++ruleImportGeneration;
+    pendingRuleImport = null;
+    document.getElementById("automation-list-install").hidden = true;
+    button.disabled = true;
+    document.getElementById("automation-list-status").textContent = "Loading rules list…";
+    try {
+      const text = await window.DBEnhancerRuleListDownload.download(document.getElementById("automation-list-url").value, {
+        requestPermission: requestRulesPermission
+      });
+      if (generation !== ruleImportGeneration) return;
+      document.getElementById("automation-list-json").value = text;
+      previewRuleImport();
+    } catch (error) {
+      if (generation === ruleImportGeneration) document.getElementById("automation-list-status").textContent = "Download failed: " + error.message;
+    } finally { button.disabled = false; }
+  });
+  document.getElementById("automation-list-install").addEventListener("click", () => {
+    if (!pendingRuleImport) return;
+    try {
+      const latest = readSettingsFromForm();
+      const others = latest.automationLists.filter(list => list.id !== pendingRuleImport.id);
+      if (others.length >= 50) throw new Error("At most 50 rules lists can be installed.");
+      currentSettings = { ...latest, automationLists: [...others, pendingRuleImport] };
+      pendingRuleImport = null;
+      renderAutomationLists();
+      document.getElementById("automation-list-install").hidden = true;
+      document.getElementById("automation-list-status").textContent = "Installed disabled. Review its formats, then enable it above.";
+      saveChanges();
+    } catch (error) { document.getElementById("automation-list-status").textContent = "Import failed: " + error.message; }
+  });
+
   // Keep controls unavailable until the real settings have loaded.
   document.getElementById("settings-controls").disabled = true;
   document.querySelectorAll(".appearance-controls button").forEach(button => { button.disabled = true; });
@@ -1142,7 +1318,7 @@
     saveChanges();
   });
   ["input", "change"].forEach(type => form.addEventListener(type, event => {
-    if (event.target.type !== "file") saveChanges();
+    if (event.target.type !== "file" && !event.target.closest(".rules-card-browser")) saveChanges();
   }));
   form.addEventListener("click", event => {
     if (event.target.closest(".visibility-button, .card-move-button, .move-button, .room-move-button, .type-chip-controls button, .color-reset, .delete-button")) saveChanges();
@@ -1158,6 +1334,7 @@
       "Reset rooms, host defaults, automation, Card Pools, Custom Sort, colors, and appearance?"
     );
     if (!confirmed) return;
+    stopLocalWatch("Local development stopped by settings reset.");
     renderSettings(core.createDefaultSettings());
     autosave.save(true);
   });
