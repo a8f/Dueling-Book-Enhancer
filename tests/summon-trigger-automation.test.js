@@ -139,10 +139,12 @@ test("destruction counts at resolution, excludes source, never leaks a face-down
   assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "To GY", card: 5 });
   h.ack(); h.runtime.tick(); assert.equal(h.runtime.snapshot().state, "opponent-moves");
   assert.match(h.runtime.snapshot().message, /Opponent's S\/T 3: face-down card/);
-  assert.equal(h.commands.some(command => command.card === 6), false);
+  assert.equal(h.commands.some(command => command.card === 6 && command.play !== "Target"), false);
   h.echo("To GY", { id: 6, username: "Opponent" }); h.runtime.tick();
   assert.equal(h.runtime.snapshot().state, "completed");
-  assert.equal(h.commands.some(command => command.play === "Target"), false);
+  assert.deepEqual(h.commands.filter(command => command.play === "Target"), [
+    { action: "Duel", play: "Target", card: 5 }, { action: "Duel", play: "Target", card: 6 }
+  ]);
   assert.equal(h.commands.some(command => command.play === "Duel message"), false);
 });
 
@@ -181,7 +183,7 @@ test("reset, hidden tab, settings, phase, socket, timeout, denied lock and manua
   const h = harness(); h.denyLock(); h.runtime.prepare(h.source); h.runtime.begin("search"); assert.equal(h.commands.length, 0);
 });
 
-test("native menu declares immediately, offers editable effects during the wait, and has no timing or activation controls", () => {
+test("native menu waits for an effect choice, offers editable effects during the wait, and has no timing or activation controls", () => {
   const h = harness(), nodes = []; let shadow;
   function element(tag) {
     const node = { tag, children: [], dataset: {}, attrs: {}, listeners: {}, isConnected: true,
@@ -196,6 +198,7 @@ test("native menu declares immediately, offers editable effects during the wait,
   const feature = createFeature({ window: h.page, document, getSettings: () => h.settings }); feature.initialize();
   h.page.cardMenuClicked(h.source, "DBX:card-automation", {});
   const latest = text => nodes.filter(node => node.textContent === text).at(-1);
+  assert.equal(h.commands.length, 0, "opening the menu must not choose an effect");
   assert.equal(latest("Search Deck").disabled, false); latest("Search Deck").click();
   assert.equal(h.commands.at(-1).play, "Declare"); assert.equal(feature.diagnostics.cardAutomation().trigger, true);
   assert.equal(h.commands.length, 1);
@@ -211,6 +214,7 @@ test("native menu declares immediately, offers editable effects during the wait,
 test("changing an effect while approval is queued requires a new opponent signal and executes the latest choice", () => {
   const h = harness();
   assert.equal(h.runtime.prepare(h.source, { autoStart: true }), true);
+  h.runtime.begin("search");
   assert.equal(h.commands.at(-1).play, "Declare");
   h.ack(); h.runtime.tick(); assert.equal(h.runtime.snapshot().state, "waiting");
   h.echo("Good", { username: "Opponent", seconds: 1 }, true);
@@ -234,9 +238,14 @@ test("automatic activation chooses an available effect and leaves an unavailable
   assert.equal(blocked.runtime.snapshot().state, "unavailable"); assert.equal(blocked.commands.length, 0);
 });
 
-test("quick native menu action declares and begins resolution without opponent approval or a mode step", () => {
+test("quick native menu action waits for the selected effect then resolves without opponent approval", () => {
   const h = harness(), ui = selectionUI(h);
   h.page.cardMenuClicked(h.source, "DBX:card-automation-resolve", {});
+  assert.equal(h.commands.length, 0);
+  assert.equal(h.runtime.snapshot().state, "choose");
+  h.advance(2000); ui.feature.tick();
+  assert.equal(h.commands.length, 0, "time passing must not choose the first effect");
+  ui.nodes.filter(node => node.textContent === "Search Deck").at(-1).click();
   assert.equal(h.commands.length, 1); assert.equal(h.commands.at(-1).play, "Declare");
   assert.equal(h.runtime.snapshot().mode, "resolve");
   h.ack(); ui.feature.tick();
@@ -247,6 +256,30 @@ test("quick native menu action declares and begins resolution without opponent a
   assert.equal(h.commands.at(-1).play, "To hand");
 });
 
+test("both native menu modes wait for a choice and can resolve the second effect directly on the field", () => {
+  for (const action of ["DBX:card-automation-resolve", "DBX:card-automation"]) {
+    const h = harness(), ui = selectionUI(h);
+    h.page.cardMenuClicked(h.source, action, {});
+    assert.equal(h.runtime.snapshot().options.filter(option => !option.disabled).length, 2);
+    h.advance(2000); ui.feature.tick();
+    h.echo("Good", { username: "Opponent", seconds: 1 }); ui.feature.tick();
+    assert.equal(h.commands.length, 0, "neither elapsed time nor approval chooses an effect");
+    ui.nodes.filter(node => node.textContent === "Destroy Spells/Traps").at(-1).click();
+    assert.equal(h.runtime.snapshot().effectChoice, "destroy");
+    h.ack(); ui.feature.tick();
+    if (action === "DBX:card-automation") {
+      assert.equal(h.runtime.snapshot().state, "waiting");
+      h.echo("Good", { username: "Opponent", seconds: 2 }); ui.feature.tick();
+    }
+    assert.equal(h.runtime.snapshot().state, "select-destroy");
+    assert.equal(h.commands.length, 1);
+    assert.equal(ui.clickCard(h.ownSpell), true);
+    h.runtime.confirmCards();
+    assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "To GY", card: 5 });
+    assert.equal(h.commands.some(command => command.play === "View deck"), false);
+  }
+});
+
 test("quick activation allows an effect change before declaration executes and pauses on an opponent response", () => {
   const h = harness();
   h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" }); h.runtime.begin("destroy");
@@ -254,6 +287,7 @@ test("quick activation allows an effect change before declaration executes and p
   assert.equal(h.runtime.snapshot().state, "select-destroy"); assert.equal(h.commands.length, 1);
   const interrupted = harness();
   interrupted.runtime.prepare(interrupted.source, { autoStart: true, mode: "resolve" });
+  interrupted.runtime.begin("search");
   interrupted.echo("Thinking", { username: "Opponent" }); interrupted.ack(); interrupted.runtime.tick();
   assert.equal(interrupted.runtime.snapshot().state, "suspended"); assert.equal(interrupted.commands.length, 1);
 });
@@ -307,7 +341,7 @@ function selectionUI(h, native = true) {
     face.style.transform = "translate(-50%, -50%)";
     face.appendChild(element("art")); card[0].appendChild(face);
   }
-  const document = { createElement: element, documentElement: element("html"), activeElement: null,
+  const document = { createElement: element, createElementNS: (_namespace, tag) => element(tag), documentElement: element("html"), activeElement: null,
     getElementById: id => id === "view" ? view : null,
     querySelector: selector => native && selector === "#view > .content" ? content : null,
     addEventListener(type, callback, capture) { (listeners[type] ||= []).push({ callback, capture }); } };
@@ -328,6 +362,117 @@ function selectionUI(h, native = true) {
     return stopped;
   } };
 }
+
+test("field picker highlights eligible cards, toggles selection, and restores the board on cancellation", () => {
+  const h = harness(), ui = selectionUI(h);
+  const face = h.hidden[0].children[0];
+  face.style.outline = "2px solid red";
+  face.style.cursor = "help";
+  h.start("destroy");
+  const host = ui.nodes.find(node => node.id === "dbx-card-automation");
+  assert.equal(host.attrs["data-field-picker"], "");
+  assert.equal(ui.nodes.find(node => node.className === "card-choices").hidden, true);
+  const border = () => face.children.find(node => node.tag === "svg");
+  assert.equal(border().children[0].attrs.class, "dbx-field-selection-border");
+  assert.equal(border().children[0].attrs.pathLength, "100");
+  assert.equal(border().children[0].attrs["stroke-dasharray"], "3 2");
+  assert.match(border().style.cssText, /pointer-events:none/);
+  assert.equal(face.style.cursor, "pointer");
+  assert.equal(h.source[0].children[0].style.outline, "");
+  assert.equal(ui.clickCard(h.source), false, "ineligible cards are not intercepted");
+  assert.equal(ui.clickCard(h.hidden, 2), false);
+  h.page.showMenu(h.hidden, []);
+  assert.equal(ui.clickCard(h.hidden), true);
+  assert.equal(h.runtime.snapshot().choices.find(choice => choice.instanceId === 6).selected, true);
+  assert.match(face.style.outline, /solid #76e9ff/);
+  assert.equal(border(), undefined, "selected outline replaces marching dashes");
+  assert.equal(h.commands.length, 1, "confirmation is still required when enabled");
+  ui.clickCard(h.hidden);
+  assert.equal(h.runtime.snapshot().choices.some(choice => choice.selected), false);
+  assert.ok(border());
+  ui.clickCard(h.ownSpell);
+  ui.clickCard(h.hidden);
+  assert.equal(h.runtime.snapshot().choices.filter(choice => choice.selected).length, 1, "selection respects the effect maximum");
+  h.runtime.cancel();
+  assert.equal(face.style.outline, "2px solid red");
+  assert.equal(face.style.cursor, "help");
+  assert.equal(border(), undefined);
+  assert.equal(ui.clickCard(h.hidden), false);
+});
+
+test("field click resolves directly with confirmation disabled and clears highlights before movement", () => {
+  const h = harness(), ui = selectionUI(h);
+  h.settings.automationConfirmSelections = false;
+  h.start("destroy");
+  assert.equal(ui.clickCard(h.ownSpell), true);
+  assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "To GY", card: 5 });
+  assert.equal(h.ownSpell[0].children[0].style.outline, "");
+  assert.equal(h.hidden[0].children[0].style.outline, "");
+  assert.equal(ui.clickCard(h.ownSpell), false);
+  assert.equal(ui.nodes.find(node => node.id === "dbx-card-automation").hidden, true);
+  assert.deepEqual(h.commands.slice(-2), [
+    { action: "Duel", play: "Target", card: 5 }, { action: "Duel", play: "To GY", card: 5 }
+  ]);
+});
+
+test("final field selection targets the opponent's hidden card once and accepts native target acknowledgments", () => {
+  for (const confirmSelections of [false, true]) {
+    const h = harness(), ui = selectionUI(h);
+    h.settings.automationConfirmSelections = confirmSelections;
+    h.start("destroy");
+    ui.clickCard(h.hidden);
+    if (confirmSelections) {
+      assert.equal(h.commands.length, 1, "tentative selections do not send targets");
+      ui.clickCard(h.hidden); h.runtime.confirmCards();
+      assert.equal(h.commands.length, 1, "deselected cards are not targeted");
+      // Restart after legally confirming zero cards.
+      h.start("destroy"); ui.clickCard(h.hidden); h.runtime.confirmCards();
+    }
+    assert.deepEqual(h.commands.at(-1), { action: "Duel", play: "Target", card: 6 });
+    assert.equal(h.runtime.snapshot().state, "opponent-moves");
+    const host = ui.nodes.find(node => node.id === "dbx-card-automation");
+    assert.equal(host.hidden, true, "final targeting closes the selection panel");
+    h.echo("Target card", { id: 6 }, true); h.runtime.tick();
+    assert.equal(h.runtime.snapshot().state, "opponent-moves");
+    h.flush(); h.runtime.tick();
+    assert.equal(host.hidden, true, "waiting for the opponent must not reopen the panel");
+    h.runtime.confirmCards(); ui.clickCard(h.hidden);
+    assert.equal(h.commands.filter(command => command.play === "Target").length, 1);
+    assert.equal(h.commands.some(command => command.play === "To GY"), false);
+    h.echo("To GY", { id: 6, username: "Opponent" }); h.runtime.tick();
+    assert.equal(h.runtime.snapshot().state, "completed");
+  }
+});
+
+test("field window stays open for partial selections and closes at the effect maximum", () => {
+  const h = harness(), ui = selectionUI(h);
+  h.settings.automationConfirmSelections = false; h.self.m3 = h.target;
+  h.start("destroy");
+  const host = ui.nodes.find(node => node.id === "dbx-card-automation");
+  ui.clickCard(h.ownSpell);
+  assert.equal(host.hidden, false);
+  assert.equal(h.runtime.snapshot().state, "select-destroy");
+  ui.clickCard(h.hidden);
+  assert.equal(host.hidden, true);
+  assert.equal(h.commands.filter(command => command.play === "Target").length, 2);
+  h.ack(); ui.feature.tick();
+  assert.equal(h.runtime.snapshot().state, "opponent-moves");
+  assert.equal(host.hidden, true);
+  h.advance(120001); ui.feature.tick();
+  assert.equal(h.runtime.snapshot().state, "stopped");
+  assert.equal(host.hidden, false, "an interrupted resolution still surfaces its message");
+});
+
+test("field selection retains a popup fallback when a native card cannot be located", () => {
+  const h = harness(), ui = selectionUI(h);
+  delete h.hidden[0];
+  h.start("destroy");
+  const choices = ui.nodes.find(node => node.className === "card-choices");
+  assert.equal(choices.hidden, false);
+  assert.equal(choices.children.length, 2);
+  choices.children[0].click();
+  assert.equal(h.runtime.snapshot().choices[0].selected, true);
+});
 
 test("native Deck picker filters legal unique cards, preserves metadata pairing and search, selects by left-click, and restores on cancellation", () => {
   const h = harness(), duplicate = h.card(12, h.target.front.name);

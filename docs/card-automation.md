@@ -52,12 +52,19 @@ explicit `monsterCards` selector list generated from a simulator archetype snaps
 `destructionMinimum` can require one selection when eligible cards remain at
 resolution; its historical default is zero. Search uses the same filtered native
 Deck picker for either selector form, with an art grid fallback and grouped Deck
-copies. Field cards remain separate choices by zone. Names/types/archetypes changed
+copies. For field destruction, click the highlighted cards directly on the board;
+click again to deselect. Gold dashes animate around eligible cards (unless reduced
+motion is enabled), and selected
+cards have cyan outlines. A compact panel in the bottom-right corner shows the
+selection count and confirmation/cancel controls. If native card elements cannot
+be located, the panel falls back to individual card choices. Field cards remain
+separate choices by zone. Names/types/archetypes changed
 by effects, chains, negation and replacement effects are adjudicated manually.
 
 The native card menu offers **Resolve now** to declare and begin resolution
-immediately, or **Wait for opponent** to declare and wait for a fresh opponent
-thumbs-up. Choice effects start with the first available effect. Summon effects
+after any required effect/position choice, or **Wait for opponent** to declare and wait for a fresh opponent
+thumbs-up. When multiple effects are available, choose one before the card is
+declared or resolution starts. A single available effect starts immediately. Summon effects
 with multiple legal positions require an ATK/DEF choice before activation in
 either mode; a single-position rule can start immediately. Effect/position buttons remain available
 while waiting. Changing a choice invalidates pending approval and automatically
@@ -67,11 +74,20 @@ resolution starts, and activation is sent only once.
 
 **Automation → Confirm card selections** is off by default. A Deck-search click
 immediately applies the selected card, and the native Deck picker has no extra
-confirmation panel. Enable it to select first and confirm in a panel near the
-middle of the screen. Multi-card choices finish automatically at their maximum
+confirmation panel. Enable it to select first and confirm (near the middle of the
+screen for Deck searches, in the corner panel for field choices).
+Multi-card choices finish automatically at their maximum
 when confirmation is off; **Done selecting** resolves fewer selections, and
 **Destroy no cards** remains available when zero is legal. This preference is
 local and independent of the selected rule list and opponent-approval mode.
+
+Finalizing field destruction selections also sends Duelingbook's native **Target**
+marker for each chosen card, so both players can see the choices. Tentative
+selections and deselections send no marker when confirmation is enabled.
+The marker identifies the resolution choices; opponents still move their own cards.
+The selection panel closes once choices are finalized, including when the maximum
+is reached with confirmation off. It stays closed while field movements finish;
+an interruption or timeout shows the status again.
 
 ## Local development without publishing
 

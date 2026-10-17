@@ -9,6 +9,7 @@
   const wrappers = new Map();
   let initialized = false;
   let nativePicker = false;
+  let fieldPicker = false;
   let concealedDeck = null;
   let viewerMenu = null;
   const nativeDecorations = new Map();
@@ -37,6 +38,10 @@
         color:#f1f7fb; font:14px/1.5 Arial,sans-serif; }
       :host([hidden]) { display:none; } * { box-sizing:border-box; }
       :host([data-native-picker]) { left:50%; top:60%; transform:translate(-50%,-50%); width:340px; max-height:38vh; }
+      :host([data-field-picker]) { left:auto; top:auto; right:16px; bottom:16px; transform:none; width:300px; max-height:40vh; }
+      :host([data-field-picker]) section { padding:12px; }
+      :host([data-field-picker]) h2 { font-size:16px; }
+      :host([data-field-picker]) .source, :host([data-field-picker]) ol { display:none; }
       section { background:#162631f5; border:1px solid #91c8df; border-radius:12px;
         box-shadow:0 8px 30px #0008; padding:18px; } h2 { font-size:18px; margin:0 0 6px; }
       p { margin:8px 0; } .source { color:#b9cedb; font-size:12px; }
@@ -112,11 +117,13 @@
     for (const [node, previous] of nativeDecorations) {
       node.style.outline = previous.outline;
       node.style.outlineOffset = previous.outlineOffset;
+      node.style.cursor = previous.cursor;
       previous.badge?.remove();
+      previous.border?.remove();
     }
     nativeDecorations.clear();
   }
-  function decorateNative(value) {
+  function decorateNative(value, field = false) {
     clearNativeDecorations();
     for (const choice of value.choices) {
       const card = page.getDuelCard?.(choice.instanceId)?.[0];
@@ -125,7 +132,24 @@
       // Decorations must share that translated box, rather than the outer anchor.
       const node = card?.querySelector?.(":scope > .content") || card;
       if (!node?.style) continue;
-      const previous = { outline: node.style.outline, outlineOffset: node.style.outlineOffset };
+      const previous = { outline: node.style.outline, outlineOffset: node.style.outlineOffset, cursor: node.style.cursor };
+      if (field) {
+        node.style.cursor = "pointer";
+        if (!choice.selected) {
+          const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          svg.setAttribute("viewBox", "0 0 100 145");
+          svg.setAttribute("preserveAspectRatio", "none");
+          svg.setAttribute("aria-hidden", "true");
+          svg.style.cssText = "position:absolute;left:-18px;top:-18px;width:calc(100% + 36px);height:calc(100% + 36px);overflow:visible;pointer-events:none;z-index:100;";
+          const border = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          for (const [key, value] of Object.entries({ x: 1, y: 1, width: 98, height: 143, rx: 2,
+            fill: "none", stroke: "#ffd76a", "stroke-width": 2.5, pathLength: 100, "stroke-dasharray": "3 2",
+            class: "dbx-field-selection-border" })) border.setAttribute(key, String(value));
+          svg.appendChild(border);
+          node.appendChild(svg);
+          previous.border = svg;
+        }
+      }
       if (choice.selected) { node.style.outline = "14px solid #76e9ff"; node.style.outlineOffset = "8px"; }
       if (choice.copies > 1) {
         const badge = document.createElement("span");
@@ -168,10 +192,18 @@
     }
   }
   function render(value) {
+    if (fieldPicker) clearNativeDecorations();
+    fieldPicker = false;
     syncDeckVisibility(value);
     syncNativePicker(value);
+    fieldPicker = value?.state === "select-destroy" && typeof page.getDuelCard === "function" &&
+      value.choices.every(choice => page.getDuelCard(choice.instanceId)?.[0]);
+    if (fieldPicker) {
+      page.removeCardMenu?.("automation field picker");
+      decorateNative(value, true);
+    }
     if (!value) { hide(); return; }
-    if (["adding", "close-deck", "completed"].includes(value.state)) { hide(); lastRenderedState = value.state; return; }
+    if (["adding", "close-deck", "destroying-field", "opponent-moves", "completed"].includes(value.state)) { hide(); lastRenderedState = value.state; return; }
     if (nativePicker && !value.confirmSelections) { hide(); lastRenderedState = value.state; return; }
     ensurePanel();
     const opening = host.hidden;
@@ -198,12 +230,16 @@
     const selecting = ["select-search", "select-destroy"].includes(value.state);
     if (nativePicker) host.setAttribute("data-native-picker", "");
     else host.removeAttribute?.("data-native-picker");
+    if (fieldPicker) host.setAttribute("data-field-picker", "");
+    else host.removeAttribute?.("data-field-picker");
     if (nativePicker) status.textContent = "Left-click a card in the Deck window, then confirm your selection here.";
     else if (value.state === "select-search" && !value.confirmSelections) status.textContent = "Click a card to add it to your hand.";
     const selectedCount = (value.choices || []).filter(choice => choice.selected).length;
-    choices.hidden = !selecting || nativePicker;
+    if (fieldPicker) status.textContent = "Click highlighted cards on the field to select or deselect them. Selected " + selectedCount +
+      " of " + value.maximum + ".";
+    choices.hidden = !selecting || nativePicker || fieldPicker;
     choices.replaceChildren();
-    for (const choice of selecting && !nativePicker ? value.choices : []) {
+    for (const choice of selecting && !nativePicker && !fieldPicker ? value.choices : []) {
       const element = button(choice.label, () => runtime.selectCard(choice.key), choices);
       element.textContent = "";
       element.setAttribute("aria-label", choice.label + (choice.copies > 1 ? " (" + choice.copies + " copies)" : ""));
@@ -239,7 +275,7 @@
     }
     if (value.trigger && configuring && focusedEffect !== undefined) {
       (Array.from(effects.children).find(element => element.dataset.effect === focusedEffect) || cancel).focus();
-    } else if (selecting && !nativePicker && (value.state !== lastRenderedState || focusedChoice !== undefined)) {
+    } else if (selecting && !nativePicker && !fieldPicker && (value.state !== lastRenderedState || focusedChoice !== undefined)) {
       (Array.from(choices.children).find(element => element.dataset.choice === focusedChoice) || choices.children[0] || confirm).focus();
     } else if (opening || (value.state === "choose" && lastRenderedState === "locking")) {
       (configuring ? (value.trigger ? effects.children[0] || cancel : Array.from(positions.children).find(element => !element.hidden)) : cancel).focus();
@@ -317,6 +353,7 @@
       return original.apply(this, arguments);
     });
     wrap("showMenu", original => function(card, items) {
+      if (fieldPicker) return;
       if (nativePicker && page.viewing === "Deck" && page.player1.main_arr.includes(card)) return;
       if (Array.isArray(items) && runtime.available(card) && !items.some(item => item.data === ACTION || item.data === QUICK_ACTION)) {
         items = items.slice();
@@ -361,9 +398,11 @@
       document.addEventListener("visibilitychange", () => { if (document.hidden) runtime.cancel(); });
       // Capture left-click before native card menus or actions can handle it.
       document.addEventListener("click", event => {
-        if (!nativePicker || event.button !== 0) return;
-        const content = document.querySelector("#view > .content");
-        if (!content?.contains(event.target)) return;
+        if ((!nativePicker && !fieldPicker) || event.button !== 0) return;
+        if (nativePicker) {
+          const content = document.querySelector("#view > .content");
+          if (!content?.contains(event.target)) return;
+        }
         const value = runtime.snapshot();
         const choice = value?.choices.find(entry => {
           const node = page.getDuelCard(entry.instanceId)?.[0];

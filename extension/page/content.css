@@ -115,3 +115,14 @@ html.dbx-hide-greenlines #greenlines {
 #card_menu.dbx-native-card-menu #card_menu_content {
   top: 0 !important;
 }
+
+/* Move the dashes along the card perimeter, without rotating the card. */
+.dbx-field-selection-border {
+  animation: dbx-field-selection-march 1s linear infinite;
+}
+@keyframes dbx-field-selection-march {
+  to { stroke-dashoffset: -5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dbx-field-selection-border { animation: none; }
+}

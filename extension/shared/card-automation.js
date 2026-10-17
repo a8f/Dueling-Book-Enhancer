@@ -502,9 +502,9 @@
           run.unlock = resolve;
           state("choose", "Choose an effect. Summon timing, responses and negation remain manual.");
           if (autoStart) {
-            const choice = effectOptions().find(option => !option.disabled);
-            if (choice) begin(choice.key);
-            else finish("No supported effect is currently available.", "unavailable");
+            const choices = effectOptions().filter(option => !option.disabled);
+            if (choices.length === 1) begin(choices[0].key);
+            else if (!choices.length) finish("No supported effect is currently available.", "unavailable");
           }
         });
       }).catch(() => { if (candidate === run) finish("Could not coordinate duel tabs."); });
@@ -592,6 +592,11 @@
         run.destructions = run.choices.filter(choice => run.selected.includes(choice.key));
         if (!run.destructions.length) { finish("Resolved without destroying cards.", "completed"); return; }
         run.journal.push("Selected for destruction: " + run.destructions.map(entry => entry.label).join("; "));
+        // Use the native visual marker so both duelists can see the final choices.
+        for (const entry of run.destructions) {
+          send("Target", id(entry.card));
+          if (run.finished) return;
+        }
         moveNext();
       }
     }
@@ -636,6 +641,8 @@
         return;
       }
       if (event.stage !== "receive") return;
+      if (event.actor.relation === "self" && event.play === "Target card" &&
+          run.destructions?.some(entry => id(entry.card) === event.card.instanceId)) return;
       if (run.destructions && event.play === "To GY" && run.destructions.some(entry => entry.player !== run.player && id(entry.card) === event.card.instanceId) && event.actor.relation === "opponent") return;
       if (["Thinking", "Stop good"].includes(event.play) && event.actor.relation === "opponent") {
         if (run.state === "declaring") { run.interrupted = true; return; }
