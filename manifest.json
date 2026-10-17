@@ -25,6 +25,12 @@
         "bundled-banlists.js",
         "enhancer-core.js",
         "duel-events.js",
+        "lifecycle.js",
+        "features/appearance.js",
+        "features/rooms.js",
+        "features/card-pools.js",
+        "features/sorting.js",
+        "features/rps.js",
         "content.js"
       ],
       "css": [
@@ -39,10 +45,14 @@
         "https://www.duelingbook.com/*"
       ],
       "js": [
+        "settings-client.js",
         "bridge.js"
       ],
       "run_at": "document_start",
       "world": "ISOLATED"
     }
-  ]
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }

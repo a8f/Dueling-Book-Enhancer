@@ -1,192 +1,128 @@
 "use strict";
-
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
-const core = require("../enhancer-core.js");
+const { test } = require("node:test");
 
-const postedMessages = [];
-const windowListeners = {};
-const documentListeners = {};
-const relayedEvents = [];
-let storageChangeListener;
-let storedSettings = core.createDefaultSettings();
-storedSettings.hostDefaults.preserveLastUsed = true;
-
-const fakeWindow = {
-  addEventListener: function addEventListener(type, listener) {
-    windowListeners[type] = listener;
-  },
-  postMessage: function postMessage(message) {
-    postedMessages.push(message);
-  }
-};
-
-const fakeDocument = {
-  addEventListener: function addEventListener(type, listener) {
-    documentListeners[type] = listener;
-  },
-  dispatchEvent: function dispatchEvent(event) {
-    relayedEvents.push(event);
-  }
-};
-
-function FakeCustomEvent(type, options) {
-  this.type = type;
-  this.detail = options.detail;
-}
-
-const fakeChrome = {
-  storage: {
+// Actual worker and clients in separate worlds, with asynchronous storage.
+function harness() {
+  let stored;
+  let receive;
+  const storageListeners = [];
+  const runtime = {
+    id: "extension-test", getURL: path => "chrome-extension://extension-test/" + path,
+    onMessage: { addListener: callback => { receive = callback; } }
+  };
+  const chrome = { runtime, storage: {
     local: {
-      get: function get(_key, callback) {
-        callback({ settings: storedSettings });
-      },
-      set: function set(value) {
-        storedSettings = value.settings;
+      get(_key, callback) { setImmediate(() => callback({ settings: structuredClone(stored) })); },
+      set(value, callback) {
+        setImmediate(() => {
+          stored = structuredClone(value.settings);
+          storageListeners.forEach(listener => listener({ settings: { newValue: stored } }, "local"));
+          callback();
+        });
       }
     },
-    onChanged: {
-      addListener: function addListener(listener) {
-        storageChangeListener = listener;
-      }
-    }
+    onChanged: { addListener: callback => storageListeners.push(callback) }
+  } };
+  const worker = vm.createContext({ chrome, console });
+  worker.importScripts = (...paths) => paths.forEach(path => vm.runInContext(fs.readFileSync(require.resolve("../" + path), "utf8"), worker));
+  vm.runInContext(fs.readFileSync(require.resolve("../background.js"), "utf8"), worker);
+  function client(url) {
+    const clientChrome = { ...chrome, runtime: { ...runtime,
+      sendMessage(message, respond) { receive(message, { id: runtime.id, url }, respond); }
+    } };
+    const page = vm.createContext({ window: {}, chrome: clientChrome });
+    vm.runInContext(fs.readFileSync(require.resolve("../settings-client.js"), "utf8"), page);
+    return { api: page.window.DBEnhancerSettingsClient, chrome: clientChrome };
   }
-};
-
-vm.runInNewContext(
-  fs.readFileSync(require.resolve("../bridge.js"), "utf8"),
-  {
-    chrome: fakeChrome,
-    console: console,
-    CustomEvent: FakeCustomEvent,
-    document: fakeDocument,
-    window: fakeWindow
-  }
-);
-
-assert.equal(typeof windowListeners.message, "function");
-assert.equal(typeof documentListeners["dueling-book-enhancer-v1-command"], "function");
-assert.equal(typeof storageChangeListener, "function");
-assert.equal(postedMessages[0].type, "settings");
-assert.equal(postedMessages[0].settings.hostDefaults.format, "au");
-assert.equal(relayedEvents[0].type, "dueling-book-enhancer-v1-settings");
-
-const requestCommand = {
-  channel: "dueling-book-enhancer-v1",
-  source: "page-main",
-  type: "request-settings",
-  requestId: "same-command-on-both-transports"
-};
-const publicationsBeforeRequest = postedMessages.length;
-windowListeners.message({ data: requestCommand });
-documentListeners["dueling-book-enhancer-v1-command"]({
-  detail: JSON.stringify(requestCommand)
-});
-assert.equal(
-  postedMessages.length,
-  publicationsBeforeRequest + 1,
-  "A command delivered on both transports must only be handled once"
-);
-
-windowListeners.message({
-  source: null,
-  data: {
-    channel: "dueling-book-enhancer-v1",
-    source: "page-main",
-    type: "save-host-defaults",
-    hostDefaults: {
-      format: "eu",
-      type: "m",
-      rules: "TCG",
-      duelNote: "Edison streak",
-      watching: false
-    }
-  }
-});
-
-assert.equal(storedSettings.hostDefaults.format, "eu");
-assert.equal(storedSettings.hostDefaults.type, "m");
-assert.equal(storedSettings.hostDefaults.rules, "TCG");
-assert.equal(storedSettings.hostDefaults.duelNote, "Edison streak");
-assert.equal(storedSettings.hostDefaults.watching, false);
-assert.equal(
-  storedSettings.hostDefaults.preserveLastUsed,
-  true,
-  "Preserve Last Used must not turn itself off while saving a host session"
-);
-
-windowListeners.message({
-  data: {
-    channel: "dueling-book-enhancer-v1",
-    source: "page-main",
-    type: "save-deck-cardpool",
-    deckId: "42",
-    cardpool: { kind: "custom", id: "dbx-redu" }
-  }
-});
-assert.equal(storedSettings.deckCardpools["42"].kind, "custom");
-assert.equal(storedSettings.deckCardpools["42"].id, "dbx-redu");
-
-storageChangeListener(
-  { settings: { newValue: storedSettings } },
-  "local"
-);
-assert.equal(postedMessages.at(-1).reason, "storage-change");
-assert.equal(postedMessages.at(-1).settings.hostDefaults.format, "eu");
-
-assert.equal(core.createDefaultSettings().autoPickRps, false);
-assert.equal(core.createDefaultSettings().rpsEnhancements, true);
-assert.equal(core.createDefaultSettings().autoStartRps, false);
-assert.equal(core.sanitizeSettings({ rpsEnhancements: false, autoStartRps: true }).rpsEnhancements, false);
-assert.equal(core.sanitizeSettings({ autoStartRps: true }).autoStartRps, true);
-assert.equal(core.sanitizeSettings({ autoStartRps: "true" }).autoStartRps, false);
-assert.equal(core.sanitizeSettings({}).rpsEnhancements, true, "existing installs keep RPS enhancements");
-assert.equal(core.sanitizeSettings({ autoPickRps: true }).autoPickRps, true);
-assert.equal(core.sanitizeSettings({ autoPickRps: "false" }).autoPickRps, false);
-storedSettings.autoStartRps = true;
-storedSettings.rpsEnhancements = false;
-for (const enabled of [true, false]) {
-  windowListeners.message({ data: {
-    channel: "dueling-book-enhancer-v1", source: "page-main",
-    type: "save-auto-pick-rps", enabled
-  } });
-  assert.equal(storedSettings.autoPickRps, enabled);
-  assert.equal(storedSettings.hostDefaults.format, "eu", "preserve other preferences");
-  // A reload requests stored settings through the bridge again.
-  windowListeners.message({ data: {
-    channel: "dueling-book-enhancer-v1", source: "page-main", type: "request-settings"
-  } });
-  assert.equal(postedMessages.at(-1).settings.autoPickRps, enabled);
-  assert.equal(postedMessages.at(-1).settings.autoStartRps, true);
-  assert.equal(postedMessages.at(-1).settings.rpsEnhancements, false);
+  return { client, read: () => structuredClone(stored) };
 }
 
-for (const enabled of [true, false]) {
-  windowListeners.message({ data: {
-    channel: "dueling-book-enhancer-v1", source: "page-main",
-    type: "save-auto-start-rps", enabled
-  } });
-  assert.equal(storedSettings.autoStartRps, enabled);
-  assert.equal(storedSettings.autoPickRps, false, "saving auto first pick preserves repeat ties");
-  assert.equal(storedSettings.rpsEnhancements, false, "saving auto first pick preserves the master switch");
-}
+test("worker serializes commands from multiple tabs and merges stale options changes", async () => {
+  const h = harness();
+  const site = h.client("https://www.duelingbook.com/").api;
+  const options = h.client("chrome-extension://extension-test/options.html").api;
+  const snapshot = await options.execute({ type: "get-settings" });
+  const edited = structuredClone(snapshot);
+  edited.showGridLines = false;
+  const { changes } = require("../settings-store.js");
+  await Promise.all([
+    site.execute({ type: "save-rps-mode", mode: "automatic" }),
+    site.execute({ type: "save-deck-cardpool", deckId: 42, cardpool: { kind: "native", value: "tcg" } }),
+    site.execute({ type: "save-deck-cardpool", deckId: 43, cardpool: { kind: "custom", id: "dbx-custom-test" } }),
+    options.execute({ type: "update-preferences", changes: changes(snapshot, edited) })
+  ]);
+  const stored = h.read();
+  assert.equal(stored.autoStartRps, true);
+  assert.equal(stored.autoPickRps, true);
+  assert.equal(stored.showGridLines, false);
+  assert.equal(stored.deckCardpools[42].value, "tcg");
+  assert.equal(stored.deckCardpools[43].id, "dbx-custom-test");
+  assert.ok(stored.customBanlists.length > 0, "worker loads bundled defaults without window");
+});
 
-for (const [mode, first, repeat] of [["manual", false, false], ["repeat", false, true], ["automatic", true, true]]) {
-  windowListeners.message({ data: {
-    channel: "dueling-book-enhancer-v1", source: "page-main", type: "save-rps-mode", mode
-  } });
-  assert.equal(storedSettings.autoStartRps, first);
-  assert.equal(storedSettings.autoPickRps, repeat);
-  assert.equal(storedSettings.rpsEnhancements, false);
-  const restored = core.sanitizeSettings(storedSettings);
-  assert.equal(restored.autoStartRps, first);
-  assert.equal(restored.autoPickRps, repeat);
-}
-windowListeners.message({ data: {
-  channel: "dueling-book-enhancer-v1", source: "page-main", type: "save-rps-mode", mode: "invalid"
-} });
-assert.equal(storedSettings.autoStartRps, true, "ignore invalid modes");
-assert.equal(storedSettings.autoPickRps, true);
+test("host updates honor preserve-last-used and stale options preserve newer host fields", async () => {
+  const h = harness();
+  const site = h.client("https://duelingbook.com/").api;
+  const options = h.client("chrome-extension://extension-test/options.html").api;
+  await site.execute({ type: "save-host-defaults", hostDefaults: { format: "eu" } });
+  assert.equal(h.read().hostDefaults.format, "au");
+  await options.execute({ type: "update-preferences", changes: [{ path: ["hostDefaults", "preserveLastUsed"], value: true }] });
+  const snapshot = await options.execute({ type: "get-settings" });
+  const edited = structuredClone(snapshot);
+  edited.hostDefaults.watching = false;
+  await site.execute({ type: "save-host-defaults", hostDefaults: { format: "eu", preserveLastUsed: false } });
+  await options.execute({ type: "update-preferences", changes: require("../settings-store.js").changes(snapshot, edited) });
+  assert.equal(h.read().hostDefaults.format, "eu");
+  assert.equal(h.read().hostDefaults.watching, false);
+  assert.equal(h.read().hostDefaults.preserveLastUsed, true);
+});
 
-console.log("Storage bridge test passed.");
+test("invalid commands do not block later writes; page cannot send options patches", async () => {
+  const h = harness();
+  const site = h.client("https://duelingbook.com/").api;
+  await assert.rejects(site.execute({ type: "save-rps-mode", mode: "invalid" }), /Invalid RPS/);
+  await assert.rejects(site.execute({ type: "update-preferences", changes: [] }), /extension settings page/);
+  const settings = await site.execute({ type: "save-rps-mode", mode: "repeat" });
+  assert.equal(settings.autoPickRps, true);
+  assert.equal(settings.autoStartRps, false);
+});
+
+test("bridge relays settings and deduplicates its two transports", async () => {
+  const h = harness();
+  const client = h.client("https://duelingbook.com/");
+  const windowListeners = {};
+  const documentListeners = {};
+  const posted = [];
+  const relayed = [];
+  const window = {
+    DBEnhancerSettingsClient: client.api,
+    addEventListener(type, callback) { windowListeners[type] = callback; },
+    postMessage(message) { posted.push(message); }
+  };
+  vm.runInNewContext(fs.readFileSync(require.resolve("../bridge.js"), "utf8"), {
+    chrome: client.chrome, console, window,
+    document: {
+      addEventListener(type, callback) { documentListeners[type] = callback; },
+      dispatchEvent(event) { relayed.push(event); }
+    },
+    CustomEvent: function(type, options) { this.type = type; this.detail = options.detail; }
+  });
+  await client.api.execute({ type: "get-settings" });
+  assert.equal(posted[0].type, "settings");
+  assert.equal(relayed[0].type, "dueling-book-enhancer-v1-settings");
+  const command = { channel: "dueling-book-enhancer-v1", source: "page-main", type: "request-settings", requestId: "one" };
+  windowListeners.message({ source: window, data: command });
+  documentListeners["dueling-book-enhancer-v1-command"]({ detail: JSON.stringify(command) });
+  await client.api.execute({ type: "get-settings" });
+  assert.equal(posted.length, 2);
+  windowListeners.message({ source: {}, data: { ...command, requestId: "other-window" } });
+  await client.api.execute({ type: "get-settings" });
+  assert.equal(posted.length, 2);
+  windowListeners.message({ source: window, data: { ...command, requestId: "save", type: "save-rps-mode", mode: "automatic" } });
+  await client.api.execute({ type: "get-settings" });
+  assert.equal(posted.at(-1).reason, "storage-change");
+  assert.equal(posted.at(-1).settings.autoStartRps, true);
+});

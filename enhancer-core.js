@@ -1,8 +1,8 @@
 (function attachEnhancerCore(root, factory) {
-  const api = factory();
+  const api = factory(root);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.DBEnhancerCore = api;
-})(typeof window !== "undefined" ? window : typeof self !== "undefined" ? self : this, function createEnhancerCore() {
+})(typeof window !== "undefined" ? window : typeof self !== "undefined" ? self : this, function createEnhancerCore(environment) {
   "use strict";
 
   const ROOM_DEFINITIONS = Object.freeze([
@@ -145,8 +145,8 @@
   }
   function createDefaultSettings() {
     const visibleRooms = {}; ROOM_DEFINITIONS.forEach(room => { visibleRooms[room.id] = true; });
-    const bundled = Array.isArray(typeof window !== "undefined" && window.DBEnhancerBundledBanlists)
-      ? copy(window.DBEnhancerBundledBanlists)
+    const bundled = Array.isArray(environment && environment.DBEnhancerBundledBanlists)
+      ? copy(environment.DBEnhancerBundledBanlists)
       : [];
     const cardPoolEnabled = {};
     NATIVE_CARDPOOL_DEFINITIONS.forEach(pool => { cardPoolEnabled[pool.id] = true; });
@@ -409,6 +409,6 @@
     COLOR_DEFINITIONS, CUSTOM_CARDPOOL_REGION_POLICY, DEFAULT_SETTINGS, FIELD_LIBRARY, HOST_FORMAT_OPTIONS, HOST_RULE_OPTIONS, HOST_TYPE_OPTIONS,
     NATIVE_CARDPOOL_DEFINITIONS, ROOM_DEFINITIONS, TYPE_DEFINITIONS, TYPE_ORDER, classifyCard, compareCards, composeColor, copy,
     createDefaultGroups, createDefaultSettings, customSortUsesDefaults, defaultRowsForTypes, getAvailableHostFormats, getRoomLayout,
-    intersectFields, normalizeGroupRows, readCardValue, sanitizeSettings, selectAvailableHostFormat, splitColorValue
+    intersectFields, normalizeGroupRows, readCardValue, sanitizeCardpoolDescriptor, sanitizeSettings, selectAvailableHostFormat, splitColorValue
   });
 });

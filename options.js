@@ -2,7 +2,6 @@
   "use strict";
 
   const core = window.DBEnhancerCore;
-  const SETTINGS_KEY = "settings";
   const form = document.getElementById("settings-form");
   const roomsGrid = document.getElementById("rooms-grid");
   const categoryContainer = document.getElementById("sort-categories");
@@ -10,17 +9,9 @@
   const cardPoolList = document.getElementById("card-pool-list");
   const colorGroups = document.getElementById("color-groups");
   const saveStatus = document.getElementById("save-status");
-  const extensionStorage =
-    typeof chrome !== "undefined" && chrome.storage && chrome.storage.local
-      ? chrome.storage.local
-      : {
-          get: function getFallback(_key, callback) {
-            callback({ settings: core.createDefaultSettings() });
-          },
-          set: function setFallback(_value, callback) {
-            if (callback) callback();
-          }
-        };
+  const settingsClient = window.DBEnhancerSettingsClient;
+  let savedSettings = core.createDefaultSettings();
+  let resetRequested = false;
   let currentSettings = core.createDefaultSettings();
   let draggedRow = null;
   let draggedRoom = null;
@@ -1108,9 +1099,15 @@
     });
   });
 
-  extensionStorage.get(SETTINGS_KEY, function settingsLoaded(result) {
-    renderSettings(result[SETTINGS_KEY]);
-  });
+  let saving = true;
+  const saveButton = form.querySelector('button[type="submit"]');
+  saveButton.disabled = true;
+  settingsClient.execute({ type: "get-settings" }).then(settings => {
+    savedSettings = core.copy(settings);
+    renderSettings(settings);
+    saving = false;
+    saveButton.disabled = false;
+  }).catch(error => showSavedStatus("Load failed: " + error.message));
 
   form.addEventListener("submit", function saveSettings(event) {
     event.preventDefault();
@@ -1122,21 +1119,45 @@
       form.reportValidity();
       return;
     }
-    extensionStorage.set({ settings: settings }, function settingsSaved() {
-      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.lastError) {
-        showSavedStatus("Save failed: " + chrome.runtime.lastError.message);
+    if (saving) return;
+    const changes = window.DBEnhancerSettingsStore.changes(savedSettings, settings);
+    // Reset is an explicit request to replace every editable preference,
+    // including fields that happened to match the page's original snapshot.
+    const updates = resetRequested
+      ? Object.keys(settings).filter(key => !["deckCardpools", "schemaVersion"].includes(key)).map(key => ({ path: [key], value: settings[key] }))
+      : changes;
+    saving = true;
+    saveButton.disabled = true;
+    settingsClient.execute({ type: "update-preferences", changes: updates, resetDeckMemory: resetRequested }).then(committed => {
+      // A user can keep editing while storage is pending. Rebase those edits
+      // onto the committed preferences instead of replacing them on response.
+      let pending;
+      try { pending = window.DBEnhancerSettingsStore.changes(settings, readSettingsFromForm()); }
+      catch (_) {
+        // Keep invalid in-progress text in the form. The submitted snapshot is
+        // still a valid baseline for the next incremental save.
+        savedSettings = core.copy(settings);
+        resetRequested = false;
+        showSavedStatus("Saved; newer edits are unsaved");
         return;
       }
-      currentSettings = settings;
-      showSavedStatus("Saved");
+      savedSettings = core.copy(committed);
+      resetRequested = false;
+      renderSettings(core.sanitizeSettings(window.DBEnhancerSettingsStore.applyChanges(committed, pending)));
+      showSavedStatus(pending.length ? "Saved; newer edits are unsaved" : "Saved");
+    }).catch(error => showSavedStatus("Save failed: " + error.message)).finally(() => {
+      saving = false;
+      saveButton.disabled = false;
     });
   });
 
   document.getElementById("reset-settings").addEventListener("click", function reset() {
+    if (saving) return;
     const confirmed = window.confirm(
       "Reset rooms, host defaults, Card Pools, Custom Sort, colors, and appearance?"
     );
     if (!confirmed) return;
+    resetRequested = true;
     renderSettings(core.createDefaultSettings());
     showSavedStatus("Defaults restored—save to apply");
   });

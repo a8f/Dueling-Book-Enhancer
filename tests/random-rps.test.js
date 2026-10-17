@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-const source = fs.readFileSync(require.resolve("../content.js"), "utf8");
+const createRps = require("../features/rps.js");
 const native = fs.readFileSync(require.resolve("../duelingbook/main.js"), "utf8");
 const elements = {};
 const sent = [];
@@ -79,7 +79,14 @@ context.window = { getComputedStyle: element => element };
 vm.createContext(context);
 // Exercise the site's actual choice handler, including its unbinding behavior.
 vm.runInContext(native.slice(native.indexOf("function chooseRPS("), native.indexOf("function pickFirst(")), context);
-vm.runInContext(source.slice(source.indexOf("  function randomRpsCards("), source.indexOf("  function installObservers(")), context);
+// Exercise the public feature API with deterministic choices.
+const rps = createRps({
+  window: context.window, document: context.document,
+  getSettings: () => context.state.settings,
+  postToBridge: context.postToBridge, isVisible: context.isVisible,
+  random: () => sample
+});
+context.syncRpsControls = rps.tick;
 
 function readyRound(allowAutoPick) {
   context.pickedRPS = false;
