@@ -12,6 +12,7 @@ Dueling Book Enhancer may process and locally store information needed to provid
 * Room visibility and ordering preferences
 * Card Pool selections and deck-to-Card-Pool mappings
 * Custom banlists and deck-sorting configurations
+* User-imported card automation lists and their local enablement/format preferences
 * Hosting defaults, including optional duel notes, watch notes, duel passwords, and watch passwords
 * Relevant Dueling Book page content, such as card, deck, room, and Card Pool information
 
@@ -38,6 +39,25 @@ Dueling Book Enhancer requests access only to Dueling Book and uses that access 
 The extension uses Chrome’s storage permission to retain user-selected settings between browser sessions.
 
 ## Data retention and deletion
+
+If the user chooses to load a rules list from a public raw GitHub URL, the extension
+requests optional access to `raw.githubusercontent.com` and downloads that JSON
+file. This sends the requested URL and ordinary network metadata to GitHub. No
+account credentials or duel/deck data are included. Lists are not downloaded or
+updated automatically, and file/string import requires no GitHub access.
+
+Choosing **Validate passcodes and names** requests optional access to
+`static.duelingbook.com` and downloads its public card catalog. The request
+includes no credentials, rules, or duel/deck data. The catalog is not bundled,
+saved, or downloaded automatically. Only identities checked by the user remain
+in settings-tab memory until that tab closes. Ordinary import and extension use
+do not require this download.
+
+Local rules development is an explicit, session-only option that requests access
+to `http://127.0.0.1/*`. While the settings tab remains open, it reads the selected
+JSON URL from a locally started development server and saves validated definitions
+locally. It sends no account credentials or duel/deck data to that server. The
+watcher stops when settings is closed or the user selects Stop watching.
 
 Saved settings remain on the user’s device until they are changed or removed through the extension’s settings or the extension is uninstalled.
 

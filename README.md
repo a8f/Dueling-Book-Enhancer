@@ -1,4 +1,4 @@
-﻿# Dueling Book Enhancer
+# Dueling Book Enhancer
 
 An unofficial browser extension for customizing Dueling Book's interface, deck tools, and duel controls.
 
@@ -10,6 +10,7 @@ An unofficial browser extension for customizing Dueling Book's interface, deck t
 - Customize colors, backgrounds, and the background grid.
 - Automate intro skipping, rock-paper-scissors, turn-order selection, and hand shuffling.
 - Get battle damage confirmation prompts and optionally pay supported spell/trap activation costs automatically.
+- Import optional card rule lists for supported card effects; no card rules are bundled.
 - See connection warnings when the site stops responding.
 
 ## Install in Chrome
@@ -46,13 +47,17 @@ On Windows PowerShell, use `npx.cmd` in place of `npx`. The root `package.json` 
 
 With Node.js 22 or newer, run `npm test` for self-contained checks. Use `npm run test:all` to include checks that require local site references. See [testing](docs/testing.md) for fixture setup and [architecture](docs/architecture.md) for code organization.
 
-To package a release, archive the contents of `extension/` with `manifest.json` at the archive root.
+Optional card-rule and extractor repositories are managed and tested separately; they are not required to build or run the extension. See [card automation](docs/card-automation.md) and [simulator rule extraction](docs/simulator-rule-extraction.md) for setup and local rule development.
+
+For a runtime-only release folder, run `node scripts/build-extension.mjs`. Archive the contents of the printed directory with `manifest.json` at the archive root.
 
 ## Documentation
 
 - [Custom banlist JSON](docs/custom-banlists.md)
 - [Battle damage](docs/battle-damage.md)
 - [Activation costs](docs/activation-costs.md)
+- [Optional card automation](docs/card-automation.md)
+- [Simulator rule extraction](docs/simulator-rule-extraction.md)
 - [Duel event framework](docs/duel-events.md)
 - [Diagnostics and interaction debugging](docs/interaction-debugging.md)
 - [Privacy policy](PRIVACY.md)

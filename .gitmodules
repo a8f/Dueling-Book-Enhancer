@@ -1,0 +1,6 @@
+[submodule "card-rules"]
+	path = personal-rules
+	url = https://github.com/a8f/db-auto-card-rules.git
+[submodule "card-rule-extractor"]
+	path = card-rule-extractor
+	url = https://github.com/a8f/dbe-sim-extractor.git

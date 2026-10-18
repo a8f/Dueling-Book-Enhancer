@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a8f.github.io/Dueling-Book-Enhancer/schemas/card-action-v3.schema.json",
+  "title": "Composable card action program v3 (spec 1)",
+  "description": "A card-independent program assembled from supported checks, choices, costs and resolution operations.",
+  "$defs": {
+    "card": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "maxLength": 160, "pattern": "\\S" },
+        "passcode": { "type": "string", "pattern": "^[0-9]{8}$", "not": { "const": "00000000" } },
+        "id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      },
+      "required": ["name"],
+      "oneOf": [
+        { "required": ["passcode"], "not": { "required": ["id"] } },
+        { "required": ["id"], "not": { "required": ["passcode"] } }
+      ]
+    },
+    "absentFaceUp": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "check": { "const": "absent-face-up" },
+        "cards": { "type": "array", "items": { "$ref": "#/$defs/card" }, "minItems": 0, "maxItems": 10 }
+      },
+      "required": ["check", "cards"]
+    },
+    "monsterFilter": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "cardType": { "const": "monster" },
+        "attribute": { "enum": ["DARK", "LIGHT", "EARTH", "WATER", "FIRE", "WIND", "DIVINE"] },
+        "cards": { "type": "array", "items": { "$ref": "#/$defs/card" }, "minItems": 1, "maxItems": 500 },
+        "namePrefixes": {
+          "type": "array", "items": { "type": "string", "maxLength": 80, "allOf": [{ "pattern": "\\S" }, { "pattern": " $" }] },
+          "minItems": 1, "maxItems": 10
+        }
+      },
+      "required": ["cardType"],
+      "allOf": [{ "not": { "required": ["cards", "namePrefixes"] } }]
+    },
+    "positionChoice": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" },
+        "kind": { "const": "position" },
+        "options": { "type": "array", "items": { "enum": ["ATK", "DEF"] }, "minItems": 1, "maxItems": 2, "uniqueItems": true }
+      },
+      "required": ["id", "kind", "options"]
+    },
+    "optionChoice": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" },
+        "kind": { "const": "option" },
+        "options": {
+          "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" },
+          "minItems": 1, "maxItems": 12, "uniqueItems": true
+        }
+      },
+      "required": ["id", "kind", "options"]
+    },
+    "banishCost": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "op": { "const": "banish" }, "card": { "const": "source" }, "reason": { "const": "cost" } },
+      "required": ["op", "card", "reason"]
+    },
+    "discardCost": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "op": { "const": "discard" }, "from": { "const": "hand" },
+        "filter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" },
+        "count": { "const": 1 }, "reason": { "const": "cost" }
+      },
+      "required": ["op", "from", "filter", "count", "reason"]
+    },
+    "specialSummon": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "op": { "const": "special-summon" }, "from": { "const": "deck" }, "card": { "$ref": "#/$defs/card" },
+        "position": {
+          "type": "object", "additionalProperties": false,
+          "properties": { "choice": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" } }, "required": ["choice"]
+        },
+        "reason": { "const": "effect" },
+        "onNoMonsterZone": {
+          "type": "object", "additionalProperties": false,
+          "properties": { "op": { "const": "destroy" }, "reason": { "const": "effect" } }, "required": ["op", "reason"]
+        }
+      },
+      "required": ["op", "from", "card", "position", "reason"]
+    },
+    "search": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "op": { "const": "search" }, "from": { "const": "deck" }, "to": { "const": "hand" },
+        "filter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" }, "count": { "const": 1 },
+        "reveal": { "const": true }, "shuffle": { "const": true },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/absentFaceUp" }, "minItems": 0, "maxItems": 8 }
+      },
+      "required": ["op", "from", "to", "filter", "count", "reveal", "shuffle", "checks"]
+    },
+    "sendToGraveyard": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "op": { "const": "send-to-graveyard" }, "from": { "const": "deck" },
+        "filter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" }, "count": { "const": 1 },
+        "shuffle": { "const": true }, "reason": { "const": "effect" }
+      },
+      "required": ["op", "from", "filter", "count", "shuffle", "reason"]
+    },
+    "destroy": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "op": { "const": "destroy" }, "reason": { "const": "effect" },
+        "selection": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "at": { "const": "resolution" }, "from": { "const": "field" }, "players": { "const": "both" },
+            "cardTypes": { "type": "array", "items": { "enum": ["spell", "trap"] }, "minItems": 1, "maxItems": 2, "uniqueItems": true },
+            "minimum": { "enum": [0, 1] },
+            "maximum": {
+              "type": "object", "additionalProperties": false,
+              "properties": {
+                "count": {
+                  "type": "object", "additionalProperties": false,
+                  "properties": {
+                    "zone": { "const": "monster" }, "player": { "const": "self" }, "faceUp": { "const": true },
+                    "exclude": { "const": "source" }, "filter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" }
+                  },
+                  "required": ["zone", "player", "faceUp", "exclude", "filter"]
+                }
+              },
+              "required": ["count"]
+            }
+          },
+          "required": ["at", "from", "players", "cardTypes", "minimum", "maximum"]
+        }
+      },
+      "required": ["op", "reason", "selection"]
+    },
+    "branch": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "op": { "const": "branch" },
+        "choice": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" },
+        "cases": {
+          "type": "object", "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/operation" }, "minItems": 0, "maxItems": 8 }
+        }
+      },
+      "required": ["op", "choice", "cases"]
+    },
+    "operation": {
+      "oneOf": [
+        { "$ref": "#/$defs/specialSummon" }, { "$ref": "#/$defs/search" },
+        { "$ref": "#/$defs/sendToGraveyard" }, { "$ref": "#/$defs/destroy" }, { "$ref": "#/$defs/branch" }
+      ]
+    }
+  },
+  "type": "object", "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 3 },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "zone": { "enum": ["graveyard", "monster"] }, "player": { "const": "self" } },
+      "required": ["zone", "player"]
+    },
+    "timing": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["ignition", "optional-trigger"] }, "turn": { "enum": ["self", "either"] },
+        "phases": { "type": "array", "items": { "enum": ["DP", "SP", "M1", "BP", "M2", "EP"] }, "minItems": 1, "maxItems": 6, "uniqueItems": true },
+        "verification": { "const": "manual" },
+        "events": { "type": "array", "items": { "enum": ["normal-summon", "special-summon"] }, "minItems": 1, "maxItems": 2, "uniqueItems": true },
+        "damageStep": { "const": true }, "oncePerTurn": { "const": "source" }
+      },
+      "required": ["kind", "turn", "phases", "verification"]
+    },
+    "filters": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "monsters": { "$ref": "#/$defs/monsterFilter" } }
+    },
+    "activation": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/absentFaceUp" }, "minItems": 0, "maxItems": 8 },
+        "choices": { "type": "array", "items": { "oneOf": [{ "$ref": "#/$defs/positionChoice" }, { "$ref": "#/$defs/optionChoice" }] }, "minItems": 0, "maxItems": 8 },
+        "costs": { "type": "array", "items": { "oneOf": [{ "$ref": "#/$defs/banishCost" }, { "$ref": "#/$defs/discardCost" }] }, "minItems": 0, "maxItems": 8 },
+        "targets": { "type": "array", "items": {}, "minItems": 0, "maxItems": 0 }
+      },
+      "required": ["checks", "choices", "costs", "targets"]
+    },
+    "resolution": { "type": "array", "items": { "$ref": "#/$defs/operation" }, "minItems": 1, "maxItems": 8 },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "level": { "const": "assisted" },
+        "manual": {
+          "type": "array", "uniqueItems": true, "minItems": 5, "maxItems": 10,
+          "items": { "enum": ["activation-legality", "responses-and-chains", "negation", "replacement-and-protection", "movement-consequences", "special-summon-legality", "trigger-window", "dynamic-card-properties", "opponent-movement", "once-per-turn"] },
+          "allOf": [
+            { "contains": { "const": "activation-legality" } }, { "contains": { "const": "responses-and-chains" } },
+            { "contains": { "const": "negation" } }, { "contains": { "const": "replacement-and-protection" } },
+            { "contains": { "const": "movement-consequences" } }
+          ]
+        }
+      },
+      "required": ["level", "manual"]
+    }
+  },
+  "required": ["schemaVersion", "source", "timing", "filters", "activation", "resolution", "coverage"]
+}
