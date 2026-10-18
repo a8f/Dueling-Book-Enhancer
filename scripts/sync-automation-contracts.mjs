@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 export async function syncAutomationContracts({ check = false } = {}) {
   const coreFile = path.join(root, "extension/shared/enhancer-core.js");
   let source = (await readFile(coreFile, "utf8")).replaceAll("\r\n", "\n");
-  const actionSchema = JSON.parse(await readFile(path.join(root, "schemas/card-action-v2.schema.json"), "utf8"));
+  const actionSchema = JSON.parse(await readFile(path.join(root, "schemas/card-action-v3.schema.json"), "utf8"));
   // The embedded validator deliberately implements only this closed subset.
   // Refuse schema features it cannot interpret instead of silently accepting them.
   const keywords = new Set(["$schema", "$id", "$ref", "$defs", "title", "description", "type", "properties",
@@ -20,6 +20,7 @@ export async function syncAutomationContracts({ check = false } = {}) {
     if (Object.hasOwn(schema, "const") && typeof schema.const === "object") throw new Error("Object/array constants require validator support");
     if (schema.enum?.some(value => typeof value === "object")) throw new Error("Object/array enums require validator support");
     for (const key of ["properties", "$defs"]) for (const child of Object.values(schema[key] || {})) supportedSchema(child);
+    if (schema.additionalProperties && typeof schema.additionalProperties === "object") supportedSchema(schema.additionalProperties);
     for (const key of ["allOf", "oneOf"]) for (const child of schema[key] || []) supportedSchema(child);
     for (const key of ["not", "items", "contains"]) if (schema[key]) supportedSchema(schema[key]);
   }
@@ -35,9 +36,9 @@ export async function syncAutomationContracts({ check = false } = {}) {
     'const copy = value => JSON.parse(JSON.stringify(value));\n' +
     'const isObject = value => value !== null && typeof value === "object" && !Array.isArray(value);\n' +
     formats + source.slice(start, end) +
-    'export default { AUTOMATION_MANUAL, banishSummonAction, summonChoiceAction, validateAutomationAction, validateAutomationList, importAutomationList, exportAutomationList };\n';
+    'export default { AUTOMATION_MANUAL, banishSummonAction, summonChoiceAction, discardSendAction, validateAutomationAction, validateAutomationList, importAutomationList, exportAutomationList };\n';
   const artifacts = [["schema-4.mjs", module]];
-  for (const name of ["card-action-v2.schema.json", "card-rule-list-v4.schema.json"]) {
+  for (const name of ["card-action-v3.schema.json", "card-rule-list-v4.schema.json"]) {
     artifacts.push(["schemas/" + name, (await readFile(path.join(root, "schemas", name), "utf8")).replaceAll("\r\n", "\n")]);
   }
   for (const [name, content] of artifacts) {

@@ -1,6 +1,6 @@
 # Automation contracts
 
-Status: implemented. Spec (1) is **card action version 2**. Spec (2) is
+Status: implemented. Spec (1) is **card action version 3**. Spec (2) is
 **card rule list version 4**. These replace the flat schema-3 list format.
 They describe the current executor, not a complete Yu-Gi-Oh! rules engine.
 
@@ -8,7 +8,7 @@ They describe the current executor, not a complete Yu-Gi-Oh! rules engine.
 
 | Contract | Machine-readable source | Responsibility |
 | --- | --- | --- |
-| Spec (1): an action definition | [card-action-v2.schema.json](../schemas/card-action-v2.schema.json) | Complete supported prerequisites, activation costs and resolution pipeline |
+| Spec (1): an action definition | [card-action-v3.schema.json](../schemas/card-action-v3.schema.json) | Composable checks, choices, costs and recursive resolution operations |
 | Spec (2): a portable list | [card-rule-list-v4.schema.json](../schemas/card-rule-list-v4.schema.json) | List metadata and entries containing card metadata plus a spec-(1) `action` |
 | Developer callbacks and subscriptions | [automation.d.ts](../contracts/automation.d.ts) | Typed event and helper API; callbacks belong to extension code |
 | Runtime validation | [enhancer-core.js](../extension/shared/enhancer-core.js) | Structural checks, identity consistency, unique rule IDs, transport limits and normalization |
@@ -36,7 +36,7 @@ the same format; neither submodule is a runtime dependency.
 
 ## Spec (1): effect lifecycle
 
-Action version 2 separates the semantic effect definition from native commands.
+Action version 3 separates the semantic effect definition from native commands.
 It follows the useful divisions in YGOPRO: registration/timing, activation
 legality checks, activation choices, costs, targets and resolution operations.
 It does not execute Lua, register arbitrary user callbacks or claim that
@@ -44,21 +44,25 @@ Duelingbook implements a simulator's rules engine.
 
 | Field | Meaning |
 | --- | --- |
-| `schemaVersion` | `2`, independent of the list-envelope version |
+| `schemaVersion` | `3`, independent of the list-envelope version |
 | `source` | Source zone and acting player; the concrete source copy comes from the native menu |
 | `timing` | Effect kind, turn scope, phases and explicitly manual timing verification |
 | `filters` | Named card predicates used by operations/count expressions |
 | `activation.checks` | Restrictions checked before declaration/cost |
 | `activation.choices` | Player decisions made before declaration and retained for resolution |
 | `activation.costs` | Operations with reason `cost`; payment is not resolution |
-| `activation.targets` | Cards targeted at activation; empty in both supported compositions |
+| `activation.targets` | Cards targeted at activation; currently empty until target operations are added |
 | `resolution` | Operations with effect semantics and references to activation choices |
 | `coverage` | Required structured disclosure of remaining manual responsibilities |
 
-The current executable subset accepts two complete compositions. The operation
-vocabulary is reusable, but arbitrary compositions, new expression types and
-new timing kinds are rejected until an adapter implements them. Empty stages
-remain explicit. The exact cardinalities/constants are normative in the schema.
+Action version 3 validates a program assembled from supported operations rather
+than enumerating complete card-shaped pipelines. Costs and resolution operations
+are ordered arrays; `branch` recursively contains more resolution operations.
+Filters and choices use named references checked across the program. Unknown
+operations and operands remain rejected. Empty stages remain explicit.
+Recombining existing operations does not require another schema version. Producers
+emit the program the card needs; the extension reports whether its current native
+handlers can execute that combination.
 There are no list-supplied JavaScript, callbacks, native commands or URLs.
 
 ### Graveyard ignition and Deck summon
@@ -138,6 +142,42 @@ placement but does not implement simultaneous destruction consequences,
 protection or replacements. Hidden opponent field cards never reveal cached
 names/art. Source departure after activation does not itself cancel the effect.
 
+### Field ignition with a hand discard and Deck send
+
+`discardSendAction({ attribute })` builds a face-up controlled monster's own
+Main Phase ignition effect. `timing.oncePerTurn: "source"` describes a soft
+once-per-turn restriction. `filters.monsters` requires `cardType: "monster"`
+and one printed attribute. Activation has no choices, checks or targets; its
+single `discard` cost selects one matching hand monster. Resolution's single
+`send-to-graveyard` operation selects one matching Deck monster at resolution,
+with `count: 1`, `reason: "effect"` and `shuffle: true`.
+
+The player confirms the hand selection before declaration. The adapter waits
+for receipt, execution and placement of the discard before allowing resolution.
+No Deck view opens before cost payment and response handling. Confirm a legal
+matching Deck monster exists before activation without opening hidden information.
+The Deck selection follows the shared card-confirmation preference. The hand
+discard cost always requires confirmation. No targeting marker is sent.
+Native view closure supplies the shuffle; no extra shuffle command is sent.
+
+The adapter issues native `To GY` movements using concrete duel instance IDs.
+Before a discard or Deck movement, it checks a small declarative registry of
+face-up public replacement effects. If one could apply, it asks the player to
+choose Graveyard or Banish; without one, no replacement prompt appears. This
+registry currently includes Macro Cosmos, Dimensional Fissure, Banisher of the
+Light and Banisher of the Radiance; face-up Imperial Iron Wall suppresses the
+prompt because banishing is publicly prohibited. The player adjudicates negation
+and other replacement effects. A paid cost is not refunded on cancellation or negation.
+Source departure after payment does not cancel the resolving effect.
+
+The runtime blocks repeated uses it observes for a source copy during the same
+turn, resetting when it observes a new turn, departure or face-down state.
+Earlier manual uses, reloads and unobserved resets still require manual checking;
+`once-per-turn` coverage is mandatory. `dynamic-card-properties` is also required
+for changed attributes/types and movement restrictions. Both Deck search and
+Deck send use the same filtered native picker, identity grouping, art fallback
+and click handling.
+
 ### Structured coverage
 
 `coverage.level` is currently only `assisted`. Its unique `manual` codes are
@@ -145,8 +185,8 @@ required, checked against the operation composition, and rendered in the duel
 panel after effect selection. A list cannot omit or claim away known limitations.
 The executor also retains concrete warning text during search/destruction.
 
-Both compositions require `activation-legality`, `responses-and-chains`,
-`negation`, `replacement-and-protection`, `movement-consequences`. Ignition also
+All compositions require `activation-legality`, `responses-and-chains`,
+`negation`, `replacement-and-protection`, `movement-consequences`. Graveyard ignition also
 requires `special-summon-legality`. Summon choice requires `trigger-window`,
 `dynamic-card-properties`, `opponent-movement`. Additional recognized manual
 codes may be disclosed. These codes describe responsibilities, not implemented
@@ -154,7 +194,7 @@ capabilities or a promise of full legality. Full text lives in `AUTOMATION_MANUA
 
 An extractor result's `rule.action` follows spec (1); `rule` is a spec-(2) entry.
 The report's Lua/research details are diagnostics and not importable list syntax.
-Builders `banishSummonAction`/`summonChoiceAction` create the supported lifecycle
+Builders `banishSummonAction`, `summonChoiceAction` and `discardSendAction` create the supported lifecycle
 shapes; import and producer boundaries still validate them. Reviewed historical
 facts retain their independent sidecar format; the compiler translates those
 facts into these operations and coverage requirements.
@@ -173,7 +213,7 @@ facts into these operations and coverage requirements.
     "card": { "passcode": "09000001", "name": "Example Source" },
     "label": "Banish this copy; summon from Deck",
     "action": {
-      "schemaVersion": 2,
+      "schemaVersion": 3,
       "source": { "zone": "graveyard", "player": "self" },
       "timing": { "kind": "ignition", "turn": "self", "phases": ["M1", "M2"], "verification": "manual" },
       "filters": {},
@@ -292,6 +332,10 @@ token; consumers must not mutate it. Prepared effect snapshots expose `effectId`
 and `manualResponsibilities`. The effect chooser exposes `effectPicker` and
 effect options before an adapter starts. Trigger snapshots additionally expose
 mode/card choices/minimum/maximum; banish snapshots expose position/costPaid.
+Card-selection snapshots expose `selection.from` and `selection.destination`.
+The shared Deck UI uses this descriptor instead of an effect-specific state
+name to select the native picker, preserve metadata pairing and apply the
+confirmation preference.
 
 User controls call `prepare`, `begin`, `choose` (position), `selectMode`,
 `selectCard`, `confirmCards`, `release` or `cancel`. `available` controls menu
@@ -360,13 +404,13 @@ in each submodule have their own Git history; this work does not publish them.
 
 ## Breaking upgrade and extension policy
 
-List schemas 1-3 and action schema 1 are rejected; there is no runtime migration
+List schemas 1-3 and action schemas 1-2 are rejected; there is no runtime migration
 or fallback. The list envelope remains version 4 because its shape is unchanged;
-the nested action is now version 2. Recompile through the updated extractor or
+the nested action is now version 3. Recompile through the updated extractor or
 rewrite actions using the lifecycle above. Keep list ID, effect ID, card and
 label stable, bump the publisher version, validate/reimport and enable again.
 Export old installed data before upgrading. Invalid persisted lists are removed
-from sanitized settings. The checked-in Edison list version 3.0.0 has been
+from sanitized settings. The checked-in Edison list version 4.0.0 has been
 converted; restart watching with that valid file if an old list was discarded.
 
 List content `version`, list `schemaVersion`, and action `schemaVersion` serve
@@ -374,7 +418,7 @@ different purposes. Keep a version immutable once shared. Adding accepted action
 fields/operations/semantics requires an action contract revision, validator and
 adapter support, tests, updated schemas/types, a vendored extractor update and
 documentation. List-envelope changes require a list contract revision. Unknown
-versions, fields and unsupported compositions must remain rejected; never silently
+versions, fields, operations and operands must remain rejected; never silently
 ignore an instruction or enable a reserved capability.
 
 ## Capability backlog
@@ -389,7 +433,7 @@ exceptions remain in the rules repository.
 | C01 | Declarative event subscriptions, callbacks and conditions | Developer callbacks only; explicit native-menu start |
 | C02 | Legal trigger windows, priority, simultaneous triggers, Damage Step/missed timing | Human adjudication |
 | C03 | Chain construction/resolution, negation, continuous-effect state | Manual release and native signals only |
-| C04 | Arbitrary costs, targets, draws, LP, counters, tokens, materials and operation composition | Reject unsupported action shapes; event helpers do not make them importable |
+| C04 | Additional costs, targets, draws, LP, counters, tokens and materials | Reject unknown operations; event helpers do not make them importable |
 | C05 | Protection, replacement, destruction consequences and simultaneous movement | Native movement plus human adjudication |
 | C06 | Dynamic names/types/archetypes, IsAbleToHand and full legality | Printed identity snapshots and bounded filters |
 | C07 | Automatic equivalence detection between publisher effect IDs | Distinct effects have a chooser; identical IDs conflict; authors maintain stable identity |

@@ -47,9 +47,11 @@ function harness() {
       const item = cards.find(card => card.data("id") === message.id);
       if (message.play === "View deck") page.viewing = "Deck";
       if (["To hand", "To hand from deck"].includes(message.play) && item) { self.main_arr = self.main_arr.filter(card => card !== item); self.hand_arr.push(item); }
-      if (message.play === "To GY" && item) {
+      if (["To GY", "Banish"].includes(message.play) && item) {
+        self.main_arr = self.main_arr.filter(card => card !== item);
+        self.hand_arr = self.hand_arr.filter(card => card !== item);
         for (const side of [self, opponent]) for (const key of ["fieldSpell", ...[1, 2, 3, 4, 5].flatMap(i => ["m" + i, "s" + i])]) if (side[key] === item) side[key] = null;
-        item.data("owner").grave_arr.push(item);
+        item.data("owner")[message.play === "Banish" ? "banished_arr" : "grave_arr"].push(item);
       }
       page.actionsQueue.shift(); page.stopQueue = false;
     }); }
@@ -72,6 +74,26 @@ function harness() {
     get runtime() { return runtime; }, setRuntime(value) { runtime = value; }, advance(ms) { clock += ms; }, denyLock() { lock = false; } };
 }
 
+test("discard/send UI offers only a hand cost before declaring", () => {
+  const h = harness();
+  h.settings.automationLists[0].rules[0].action = core.discardSendAction({ attribute: "DARK" });
+  h.page.turn_player = h.self; h.page.currentPhase = "M1";
+  h.wrong.front.attribute = "DARK"; h.self.hand_arr.push(h.wrong);
+  const ui = selectionUI(h);
+  h.page.cardMenuClicked(h.source, "DBX:card-automation", {});
+  const latest = text => ui.nodes.filter(node => node.textContent === text).at(-1);
+  latest("Activate effect").click();
+  assert.equal(h.runtime.snapshot().state, "select-cost");
+  assert.equal(latest("Banish instead (replacement)"), undefined);
+  const picker = ui.nodes.find(node => node.className === "card-choices");
+  assert.equal(picker.hidden, false); picker.children[0].click();
+  assert.equal(h.commands.length, 0);
+  assert.equal(latest("Confirm selection").hidden, false);
+  latest("Confirm selection").click();
+  assert.equal(h.commands.at(-1).play, "Declare");
+  h.ack(); ui.feature.tick(); assert.equal(h.commands.at(-1).play, "To GY");
+});
+
 test("choice schema validates both contracts and rejects unsupported instructions", async () => {
   const vendored = fs.existsSync(require("node:path").join(__dirname, "../card-rule-extractor/schema-4.mjs"))
     ? (await import("../card-rule-extractor/schema-4.mjs")).default : null;
@@ -79,7 +101,7 @@ test("choice schema validates both contracts and rejects unsupported instruction
     assert.equal(api.importAutomationList(JSON.stringify(definition())).rules[0].action.timing.turn, "either");
     for (const mutate of [list => list.rules[0].action.timing.events = "flip-summon", list => list.rules[0].action.activation.costs.push({ op: "banish", card: "source" }),
       list => list.rules[0].action.filters.monsters.namePrefixes = [], list => list.rules[0].action.filters.monsters.namePrefixes = ["HERO"],
-      list => list.rules[0].action.timing.phases = ["M1"], list => list.rules[0].action.resolution[0].script = "arbitrary",
+      list => list.rules[0].action.resolution[0].script = "arbitrary",
       list => list.rules[0].action.resolution[0].cases.search[0].checks[0].cards[0].passcode = "09000001"]) {
       const value = definition(); mutate(value);
       assert.throws(() => api.importAutomationList(JSON.stringify(value)));
@@ -361,6 +383,90 @@ function selectionUI(h, native = true) {
     return stopped;
   } };
 }
+
+function deckPickerUI(h, operation, native = true) {
+  if (operation === "send") {
+    h.settings.automationLists[0].rules[0].action = core.discardSendAction({ attribute: "DARK" });
+    h.page.turn_player = h.self; h.page.currentPhase = "M1";
+    h.target.front.attribute = "DARK"; h.wrong.front.attribute = "LIGHT";
+    for (const item of h.self.main_arr) if (item.front.name === h.target.front.name) item.front.attribute = "DARK";
+    const cost = h.card(20, "Example hand cost"); cost.front.attribute = "DARK";
+    cost.data("owner", h.self); cost.data("controller", h.self); h.self.hand_arr.push(cost);
+  }
+  const ui = selectionUI(h, native);
+  if (operation === "send") {
+    h.runtime.prepare(h.source, { mode: "resolve" }); h.runtime.begin("activate");
+    h.runtime.selectCard("20"); h.runtime.confirmCards(); h.ack(); h.runtime.tick(); h.ack(); h.runtime.tick();
+  } else h.start();
+  h.ack(); h.runtime.tick();
+  assert.equal(h.runtime.snapshot().selection.from, "deck");
+  return ui;
+}
+
+test("search and send share the native Deck picker, identity grouping, metadata pairing and cancellation cleanup", () => {
+  for (const operation of ["search", "send"]) {
+    const h = harness(), duplicate = h.card(12, h.target.front.name);
+    h.self.main_arr.push(duplicate); const original = h.self.main_arr.slice();
+    const ui = deckPickerUI(h, operation);
+    assert.deepEqual(ui.rendered.at(-1).cards, [h.target]);
+    assert.equal(h.runtime.snapshot().choices.length, 1);
+    assert.equal(h.runtime.snapshot().choices[0].copies, 2);
+    const face = h.target[0].children[0];
+    assert.equal(face.children.at(-1).textContent, "\u00d72");
+    h.page.viewCards(h.self.main_arr, { deck: h.self.main_arr.map(card => card.front), searchable: true });
+    assert.deepEqual(ui.rendered.at(-1).options.deck, [h.target.front]);
+    assert.equal(ui.rendered.at(-1).options.searchable, true);
+    h.page.showMenu(h.target, []);
+    assert.equal(ui.clickCard(h.target, 2), false);
+    const before = h.commands.length;
+    assert.equal(ui.clickCard(h.target), true);
+    assert.equal(h.commands.length, before, "both operations honor confirmation");
+    assert.match(face.style.outline, /solid/);
+    h.page.viewCards(h.self.main_arr);
+    assert.deepEqual(ui.rendered.at(-1).cards, [h.target]);
+    assert.deepEqual(h.self.main_arr, original);
+    h.runtime.cancel();
+    assert.deepEqual(ui.rendered.at(-1).cards, original);
+    assert.equal(face.style.outline, "");
+    assert.equal(face.children.some(node => node.textContent === "\u00d72"), false);
+  }
+});
+
+test("both Deck operations use the confirmation preference", () => {
+  for (const operation of ["search", "send"]) for (const confirmation of [false, true]) {
+    const h = harness(); h.settings.automationConfirmSelections = confirmation;
+    const ui = deckPickerUI(h, operation);
+    const host = ui.nodes.find(node => node.id === "dbx-card-automation");
+    const latest = text => ui.nodes.filter(node => node.textContent === text).at(-1);
+    if (operation === "send" && !confirmation) assert.equal(host.hidden, true, "one-click Deck sends need no extra controls");
+    const before = h.commands.length;
+    ui.clickCard(h.target);
+    if (confirmation) {
+      assert.equal(h.commands.length, before);
+      assert.equal(latest("Confirm selection").hidden, false);
+      latest("Confirm selection").click();
+    }
+    assert.deepEqual(h.commands.at(-1), { action: "Duel", play: operation === "send" ? "To GY" : "To hand", card: 3 });
+    assert.equal(h.commands.length, before + 1, "one concrete instance moves exactly once");
+    assert.deepEqual(ui.rendered.at(-1).cards, h.self.main_arr, "native filter is removed before movement");
+    assert.equal(host.hidden, true);
+    assert.equal(ui.view.style.visibility, "hidden");
+  }
+});
+
+test("search and send share fallback art and duplicate grouping when native controls are unavailable", () => {
+  for (const operation of ["search", "send"]) {
+    const h = harness(); h.target.front.id = 1234;
+    h.self.main_arr.push(h.card(12, h.target.front.name));
+    const ui = deckPickerUI(h, operation, false);
+    const picker = ui.nodes.find(node => node.className === "card-choices");
+    assert.equal(picker.hidden, false); assert.equal(picker.children.length, 1);
+    assert.equal(picker.children[0].children.find(node => node.tag === "img").src, "https://images.duelingbook.com/low-res/1234.jpg");
+    assert.equal(h.runtime.snapshot().choices[0].copies, 2);
+    picker.children[0].click(); h.runtime.confirmCards();
+    assert.equal(h.commands.at(-1).play, operation === "send" ? "To GY" : "To hand");
+  }
+});
 
 test("field picker highlights eligible cards, toggles selection, and restores the board on cancellation", () => {
   const h = harness(), ui = selectionUI(h);

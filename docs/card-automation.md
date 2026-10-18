@@ -28,9 +28,12 @@ the duel formats in which it should run. Updates are manual imports using the
 same list ID; review replacements before installing. Keep an export of an old
 version if you want to restore it. Exports omit local enablement. There is no
 automatic polling, list discovery, update subscription or publisher verification.
+The preview separately reports structurally valid programs whose native operation
+handlers cannot yet be composed. They may be installed for review, but remain
+unavailable in the duel UI until the runtime gains that handler composition.
 
-Lists use schema 4 with independently versioned action definitions. Schema 1-3
-lists must be converted and reimported. See the [formal contracts and upgrade
+Lists use schema 4 with action schema 3. Schema 1-3 lists and action schema 1-2
+definitions must be converted and reimported. See the [formal contracts and upgrade
 instructions](automation-contracts.md). Printed passcode and native database ID
 selectors remain supported; names alone never match a card.
 Invalid persisted definitions cannot execute. No specific list is recreated
@@ -52,7 +55,10 @@ explicit `monsterCards` selector list generated from a simulator archetype snaps
 `destructionMinimum` can require one selection when eligible cards remain at
 resolution; its historical default is zero. Search uses the same filtered native
 Deck picker for either selector form, with an art grid fallback and grouped Deck
-copies. For field destruction, click the highlighted cards directly on the board;
+copies. Deck-to-Graveyard effects use this same picker, grouping and confirmation
+preference. A face-up public Graveyard-replacement effect prompts for the
+movement only when it could apply; ordinary sends issue native Graveyard
+movements directly. For field destruction, click the highlighted cards directly on the board;
 click again to deselect. Gold dashes animate around eligible cards (unless reduced
 motion is enabled), and selected
 cards have cyan outlines. A compact panel in the bottom-right corner shows the
@@ -77,10 +83,11 @@ re-arms the wait. **Resolve now** remains available for manual release. Summon
 timing stays manual without a confirmation checkbox. Effect choice locks when
 resolution starts, and activation is sent only once.
 
-**Automation → Confirm card selections** is off by default. A Deck-search click
+**Automation → Confirm card selections** is off by default. A Deck-selection click
 immediately applies the selected card, and the native Deck picker has no extra
 confirmation panel. Enable it to select first and confirm (near the middle of the
-screen for Deck searches, in the corner panel for field choices).
+screen for Deck selections, in the corner panel for field choices). Hand discard
+costs always require confirmation before declaration and payment.
 Multi-card choices finish automatically at their maximum
 when confirmation is off; **Done selecting** resolves fewer selections, and
 **Destroy no cards** remains available when zero is legal. This preference is
@@ -141,15 +148,20 @@ bundled into the extension by this workflow.
 ## Formal contracts
 
 [Automation contracts](automation-contracts.md) defines spec (1), card action
-version 2, and spec (2), list version 4, with JSON Schemas and TypeScript
+version 3, and spec (2), list version 4, with JSON Schemas and TypeScript
 contracts. Each list entry contains card metadata and a nested `action`.
-The document covers both executable pipelines, event/callback subscriptions,
+The document covers executable action programs, event/callback subscriptions,
 validation, producer requirements, limitations, the capability backlog and
 breaking upgrade instructions.
 
 Lists remain data only. New cards using supported operations require only JSON
-changes. A new operation or pipeline requires a versioned contract and extension
-adapter with protocol/lifecycle tests. No card rules are bundled.
+changes. A new operation requires a versioned contract and generic native
+operation handler with protocol/lifecycle tests. No card rules are bundled.
+
+Before execution, the runtime recursively compiles activation costs and branch
+cases into an operation plan. Native executors are registered by operation name.
+Timing kinds, card identities and the first resolution entry do not select an
+executor, so definitions that share operations use the same runtime path.
 
 ## Duel UI and execution
 

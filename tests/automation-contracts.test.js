@@ -3,6 +3,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { existsSync } = require("node:fs");
 const core = require("../extension/shared/enhancer-core.js");
+const automation = require("../extension/shared/card-automation.js");
 
 const action = () => core.banishSummonAction({ card: { passcode: "09000002", name: "Example Result" }, positions: ["DEF"] });
 const list = () => ({ schemaVersion: 4, id: "example", name: "Example", version: "1.0.0", formats: ["so"],
@@ -17,6 +18,27 @@ test("spec 1 is independently validated and spec 2 embeds the same definition", 
   assert.equal(imported.enabled, false);
   assert.equal(JSON.parse(core.exportAutomationList(imported)).enabled, undefined);
   assert.deepEqual(imported.rules[0].action, input);
+});
+
+test("runtime compilation derives an operation plan without card or timing dispatch", () => {
+  const summon = automation.compileAction(core.banishSummonAction({ card: { id: 2, name: "Example Result" } }));
+  assert.equal(summon.source, "graveyard");
+  assert.deepEqual(summon.operations, ["banish", "special-summon"]);
+
+  const trigger = automation.compileAction(core.summonChoiceAction({ monsterNamePrefixes: ["Example "] }));
+  assert.equal(trigger.source, "monster");
+  assert.deepEqual(trigger.operations, ["search", "destroy"]);
+  assert.deepEqual(trigger.resolution.map(step => step.path), [
+    ["resolution", 0, "cases", "search", 0],
+    ["resolution", 0, "cases", "destroy", 0]
+  ]);
+
+  const send = automation.compileAction(core.discardSendAction({ attribute: "DARK" }));
+  assert.deepEqual(send.operations, ["discard", "send-to-graveyard"]);
+
+  assert.deepEqual(automation.materializeAction(core.summonChoiceAction({ monsterNamePrefixes: ["Example "] }), { mode: "search" })
+    .map(step => [step.stage, step.operation.op]), [["resolution", "search"]]);
+  assert.throws(() => automation.materializeAction(core.summonChoiceAction({ monsterNamePrefixes: ["Example "] }), {}), /Missing choice/);
 });
 
 test("breaking contracts reject old, future, mixed and incomplete definitions", () => {
@@ -49,7 +71,6 @@ test("effect contracts reject unsupported lifecycle semantics and incomplete cov
     value => value.activation.targets.push({ card: "source" }),
     value => value.resolution[0].position.choice = "missing",
     value => value.timing.verification = "automatic",
-    value => value.timing.turn = "either",
     value => value.resolution[0].onNoMonsterZone = { op: "send-to-graveyard", reason: "effect" }]) {
     const value = action(); mutate(value);
     assert.throws(() => core.validateAutomationAction(value));
@@ -59,6 +80,23 @@ test("effect contracts reject unsupported lifecycle semantics and incomplete cov
   assert.throws(() => core.validateAutomationAction(target));
   trigger.coverage.manual = trigger.coverage.manual.filter(code => code !== "opponent-movement");
   assert.throws(() => core.validateAutomationAction(trigger));
+});
+
+test("action schema composes lifecycle stages instead of enumerating card-shaped pipelines", () => {
+  const value = core.banishSummonAction({ card: { id: 3, name: "Example Result" } });
+  value.source.zone = "monster";
+  value.filters.monsters = { cardType: "monster", attribute: "DARK" };
+  value.activation.costs = [{ op: "discard", from: "hand", filter: "monsters", count: 1, reason: "cost" }];
+  value.timing.oncePerTurn = "source";
+  value.coverage.manual.push("dynamic-card-properties", "once-per-turn");
+  assert.deepEqual(core.validateAutomationAction(value), value);
+  assert.deepEqual(automation.compileAction(value).operations, ["discard", "special-summon"]);
+  assert.deepEqual(automation.materializeAction(value, { position: "DEF" }).map(step => [step.stage, step.operation.op]),
+    [["cost", "discard"], ["resolution", "special-summon"]]);
+  assert.deepEqual(automation.executionSupport(value), {
+    supported: false, operations: ["discard", "special-summon"], missing: [],
+    reason: "These operations are valid in action schema 3 but their native handlers are not composable yet."
+  });
 });
 
 test("the transport limit counts UTF-8 bytes including whitespace", () => {

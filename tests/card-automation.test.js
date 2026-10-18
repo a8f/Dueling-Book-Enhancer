@@ -111,6 +111,21 @@ test("extension bundles no lists; imported definitions persist scope without exp
   assert.throws(() => core.importAutomationList('{"__proto__":{},"schemaVersion":1}'));
 });
 
+test("valid recomposed programs report missing native composition without crashing the duel runtime", () => {
+  const h = harness(), action = core.banishSummonAction({ card: { passcode: "09000001", name: CARD } });
+  action.filters.monsters = { cardType: "monster", attribute: "DARK" };
+  action.resolution = [{ op: "send-to-graveyard", from: "deck", filter: "monsters", count: 1, shuffle: true, reason: "effect" }];
+  action.coverage.manual = action.coverage.manual.filter(code => code !== "special-summon-legality");
+  action.coverage.manual.push("dynamic-card-properties");
+  h.settings.automationLists[0].rules[0].action = core.validateAutomationAction(action);
+  assert.equal(h.runtime.available(h.source), true);
+  assert.equal(h.runtime.eligible(h.source), false);
+  assert.equal(h.runtime.prepare(h.source), true);
+  assert.equal(h.runtime.snapshot().state, "unavailable");
+  assert.match(h.runtime.snapshot().message, /native handlers are not composable/);
+  assert.deepEqual(h.commands, []);
+});
+
 test("only a matching local graveyard card in selected formats and a free zone is eligible", () => {
   const h = harness();
   for (const format of ["ar", "au"]) { h.page.duelFormat = format; assert.equal(h.runtime.eligible(h.source), true); }

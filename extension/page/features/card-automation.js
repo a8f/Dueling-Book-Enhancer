@@ -6,6 +6,7 @@
   const { window: page, document, getSettings } = context;
   const ACTION = "DBX:card-automation";
   const QUICK_ACTION = "DBX:card-automation-resolve";
+  const isDeckSelection = value => value?.selection?.from === "deck";
   const wrappers = new Map();
   let initialized = false;
   let nativePicker = false;
@@ -163,7 +164,7 @@
     }
   }
   function syncNativePicker(value) {
-    const supported = value?.state === "select-search" && page.viewing === "Deck" && typeof page.viewCards === "function" &&
+    const supported = isDeckSelection(value) && page.viewing === "Deck" && typeof page.viewCards === "function" &&
       typeof page.getDuelCard === "function" && Boolean(document.querySelector?.("#view > .content")) &&
       value.choices.every(choice => page.getDuelCard(choice.instanceId)?.[0]);
     const wasNative = nativePicker;
@@ -179,7 +180,7 @@
   function syncDeckVisibility(value) {
     // Keep native viewing state intact until the acknowledged move completes.
     // Hiding only the window avoids a second network command racing the move.
-    const conceal = value?.state === "adding" || (concealedDeck && value?.state === "close-deck");
+    const conceal = ["adding", "sending"].includes(value?.state) || (concealedDeck && value?.state === "close-deck");
     if (conceal && page.viewing === "Deck") {
       const view = document.getElementById?.("view");
       if (view?.style && !concealedDeck) {
@@ -205,8 +206,8 @@
       decorateNative(value, true);
     }
     if (!value) { hide(); return; }
-    if (["adding", "close-deck", "destroying-field", "opponent-moves", "completed"].includes(value.state)) { hide(); lastRenderedState = value.state; return; }
-    if (nativePicker && !value.confirmSelections) { hide(); lastRenderedState = value.state; return; }
+    if (["adding", "sending", "close-deck", "destroying-field", "opponent-moves", "completed"].includes(value.state)) { hide(); lastRenderedState = value.state; return; }
+    if (nativePicker && !value.confirmSelections && !value.options?.length) { hide(); lastRenderedState = value.state; return; }
     ensurePanel();
     const opening = host.hidden;
     const focusedChoice = host.shadowRoot.activeElement?.dataset?.choice;
@@ -217,13 +218,14 @@
     status.textContent = value.message;
     limitations.textContent = (value.manualResponsibilities || []).join(" ");
     limitations.hidden = !value.manualResponsibilities?.length;
-    const configuring = ["choose", "declaring", "banishing", "ready", "waiting", "approved", "suspended"].includes(value.state);
+    const configuring = ["choose", "declaring", "banishing", "ready", "waiting", "approved", "suspended", "replacement-choice"].includes(value.state);
+    const selecting = Boolean(value.selection) || value.state === "select-destroy";
     positions.hidden = !configuring || value.trigger;
     for (const element of positions.children) {
       element.hidden = !value.positions.includes(element.dataset.position);
       element.setAttribute("aria-pressed", String(element.dataset.position === value.position));
     }
-    effects.hidden = !value.trigger || !configuring;
+    effects.hidden = !value.trigger || !(configuring || (selecting && value.options?.length));
     effects.replaceChildren();
     for (const option of value.options || []) {
       const element = button(option.label, () => runtime.begin(option.key), effects);
@@ -231,13 +233,15 @@
       element.disabled = option.disabled;
       element.setAttribute("aria-pressed", String(option.key === value.effectChoice));
     }
-    const selecting = ["select-search", "select-destroy"].includes(value.state);
     if (nativePicker) host.setAttribute("data-native-picker", "");
     else host.removeAttribute?.("data-native-picker");
     if (fieldPicker) host.setAttribute("data-field-picker", "");
     else host.removeAttribute?.("data-field-picker");
-    if (nativePicker) status.textContent = "Left-click a card in the Deck window, then confirm your selection here.";
-    else if (value.state === "select-search" && !value.confirmSelections) status.textContent = "Click a card to add it to your hand.";
+    if (isDeckSelection(value)) {
+      const movement = { hand: "add it to your hand", graveyard: "send it to the Graveyard" }[value.selection.destination];
+      status.textContent = (nativePicker ? "Left-click a card in the Deck window" : "Click a card") +
+        (value.confirmSelections ? ", then confirm your selection here." : " to " + movement + ".");
+    }
     const selectedCount = (value.choices || []).filter(choice => choice.selected).length;
     if (fieldPicker) status.textContent = "Click highlighted cards on the field to select or deselect them. Selected " + selectedCount +
       " of " + value.maximum + ".";
@@ -262,8 +266,8 @@
       element.setAttribute("aria-pressed", String(choice.selected));
       element.disabled = value.state === "select-destroy" && !choice.selected && selectedCount >= value.maximum;
     }
-    confirm.hidden = !selecting || (value.state === "select-search" && !value.confirmSelections);
-    confirm.disabled = value.state === "select-search" ? selectedCount !== 1 : selectedCount > value.maximum || selectedCount < (value.minimum || 0);
+    confirm.hidden = !selecting || (isDeckSelection(value) && !value.confirmSelections);
+    confirm.disabled = value.state === "select-destroy" ? selectedCount > value.maximum || selectedCount < (value.minimum || 0) : selectedCount !== 1;
     confirm.textContent = value.state === "select-destroy" && !selectedCount && !value.minimum ? "Destroy no cards" :
       value.state === "select-destroy" && !value.confirmSelections ? "Done selecting" : "Confirm selection";
     const canResolve = (value.costPaid || value.activated) && ["ready", "waiting", "suspended"].includes(value.state);
@@ -344,7 +348,7 @@
   function install() {
     wrap("viewCards", original => function(cards, options) {
       const value = runtime.snapshot();
-      if (nativePicker && value?.state === "select-search" && page.viewing === "Deck" && cards === page.player1.main_arr) {
+      if (nativePicker && isDeckSelection(value) && page.viewing === "Deck" && cards === page.player1.main_arr) {
         const entries = value.choices.map(choice => ({ choice, card: page.getDuelCard(choice.instanceId) }))
           .filter(entry => cards.includes(entry.card));
         // Native viewCards pairs cards with options.deck by index when supplied.

@@ -1246,10 +1246,13 @@
       const list = core.importAutomationList(document.getElementById("automation-list-json").value);
       ruleCardValidation.check(list);
       const existing = currentSettings.automationLists.find(item => item.id === list.id);
+      const unsupported = list.rules.filter(rule => !window.DBEnhancerCardAutomation.executionSupport(rule.action).supported);
       pendingRuleImport = list;
       document.getElementById("automation-list-status").textContent =
         `${list.name} ${list.version}: ${list.rules.length} rule(s); formats: ${list.formats.join(", ")}. ` +
-        (existing ? `Replaces ${existing.name} ${existing.version}. ` : "Adds a new list. ") + "Installs disabled. No actions run during import.";
+        (existing ? `Replaces ${existing.name} ${existing.version}. ` : "Adds a new list. ") + "Installs disabled. No actions run during import." +
+        (unsupported.length ? ` Warning: ${unsupported.length} effect(s) use valid schema operations whose native handlers are not composable yet: ` +
+          unsupported.map(rule => rule.label).join(", ") + "." : " All effect programs have native execution support.");
       install.hidden = false;
     } catch (error) { document.getElementById("automation-list-status").textContent = "Import failed: " + error.message; }
   }

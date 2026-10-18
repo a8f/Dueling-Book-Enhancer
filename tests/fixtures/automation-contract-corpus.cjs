@@ -17,7 +17,7 @@ function corpus() {
     catch { valid = false; }
     cases.push({ kind, value, valid, path });
   };
-  for (const action of [banish, trigger, prefix]) {
+  for (const action of [banish, trigger, prefix, core.discardSendAction({ attribute: "DARK" })]) {
     for (const [kind, original] of [["action", action], ["list", list(action)]]) {
       add(kind, original, "baseline");
       function visit(value, path = []) {

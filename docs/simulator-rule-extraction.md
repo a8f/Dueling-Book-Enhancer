@@ -1,6 +1,6 @@
 # Optional simulator extractor
 
-Outputs use [action schema 2 and list schema 4](automation-contracts.md).
+Outputs use [action schema 3 and list schema 4](automation-contracts.md).
 A supported per-card result exposes the spec-(1) definition as `rule.action`;
 `--write` and the Edison batch helper produce spec-(2) lists. Older list formats
 must be converted before writing. The extractor vendors both schemas and the
@@ -44,6 +44,23 @@ Card-specific historical facts and corrections live in
 beside `personal-rules/edison.json`; previews select it with `--reviews`. The generic
 compiler can correct/reconstruct historical effects independently of modern Lua.
 It validates the external review again before writing.
+
+An exported action passing validation does not establish full-card coverage.
+External reviews can list each effect and summon procedure in `effectInventory`,
+with its implementation status and reviewed text/script fingerprints. The
+import helper prints `complete`, `partial` or `unverified` coverage, lists the
+effects, and warns about missing implementations even on unchanged imports.
+Missing or stale inventories warn instead of silently claiming full coverage.
+Partial coverage allows importing the supported action; it does not make the
+other effects executable. See [per-effect coverage](../card-rule-extractor/README.md#per-effect-coverage).
+
+Reviewed `field-ignition-discard-send-from-deck` facts can reconstruct one
+attribute-filtered ignition effect independently of the installed Lua. The
+external review supplies `attribute`; the generic action discards one matching
+hand monster as cost, then sends one matching Deck monster at resolution.
+This is a scoped effect export: other effects on the same card are not implied
+to be supported. Replacement destinations and earlier once-per-turn usage
+remain manually adjudicated. See [the lifecycle contract](automation-contracts.md#field-ignition-with-a-hand-discard-and-deck-send).
 
 The Lua translator also recognizes the complete legacy optional summon-trigger
 choice between a revealed archetype-monster Deck search and non-targeting

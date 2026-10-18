@@ -82,6 +82,9 @@ see [battle damage](battle-damage.md). It loads before the feature UI.
 as data in `extension/shared/enhancer-core.js` and persist through the existing settings writer;
 no page command can import or enable them. See [card automation](card-automation.md)
 for optional imports, execution gates, native Deck search flow and limitations.
+The runtime compiles activation costs and recursive resolution branches into an
+operation plan. An operation registry assigns native executors by operation name;
+card identity, timing kind and array position never choose an executor.
 
 To add a page feature, create a factory with `initialize`, optional `tick`,
 `settingsChanged`, `settingsKeys` and `diagnostics`, then load it before

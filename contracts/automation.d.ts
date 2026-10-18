@@ -6,15 +6,16 @@ export type CardSelector = { name: string } & (
 );
 export type ManualResponsibility = "activation-legality" | "responses-and-chains" | "negation" |
   "replacement-and-protection" | "movement-consequences" | "special-summon-legality" |
-  "trigger-window" | "dynamic-card-properties" | "opponent-movement";
+  "trigger-window" | "dynamic-card-properties" | "opponent-movement" | "once-per-turn";
 export interface Coverage { level: "assisted"; manual: ManualResponsibility[] }
 export interface AbsentFaceUpCheck { check: "absent-face-up"; cards: CardSelector[] }
 export interface BanishCost { op: "banish"; card: "source"; reason: "cost" }
+export interface DiscardCost { op: "discard"; from: "hand"; filter: string; count: 1; reason: "cost" }
 export interface SpecialSummonOperation {
   op: "special-summon";
   from: "deck";
   card: CardSelector;
-  position: { choice: "position" };
+  position: { choice: string };
   reason: "effect";
   onNoMonsterZone?: { op: "destroy"; reason: "effect" };
 }
@@ -22,7 +23,7 @@ export type MonsterFilter = { cardType: "monster" } & (
   { cards: CardSelector[]; namePrefixes?: never } | { namePrefixes: string[]; cards?: never }
 );
 export interface SearchOperation {
-  op: "search"; from: "deck"; to: "hand"; filter: "monsters"; count: 1; reveal: true; shuffle: true;
+  op: "search"; from: "deck"; to: "hand"; filter: string; count: 1; reveal: true; shuffle: true;
   checks: AbsentFaceUpCheck[];
 }
 export interface DestroyOperation {
@@ -30,15 +31,35 @@ export interface DestroyOperation {
   reason: "effect";
   selection: {
     at: "resolution"; from: "field"; players: "both"; cardTypes: ("spell" | "trap")[]; minimum: 0 | 1;
-    maximum: { count: { zone: "monster"; player: "self"; faceUp: true; exclude: "source"; filter: "monsters" } };
+    maximum: { count: { zone: "monster"; player: "self"; faceUp: true; exclude: "source"; filter: string } };
   };
 }
 export interface BranchOperation {
-  op: "branch"; choice: "mode";
-  cases: { search: [SearchOperation]; destroy: [DestroyOperation] };
+  op: "branch"; choice: string;
+  cases: Record<string, Operation[]>;
+}
+export interface SendToGraveyardOperation {
+  op: "send-to-graveyard"; from: "deck"; filter: string; count: 1; shuffle: true; reason: "effect";
+}
+export type Operation = SpecialSummonOperation | SearchOperation | DestroyOperation | SendToGraveyardOperation | BranchOperation;
+export interface CardAction {
+  schemaVersion: 3;
+  source: { zone: "graveyard" | "monster"; player: "self" };
+  timing: { kind: "ignition" | "optional-trigger"; turn: "self" | "either"; phases: Phase[]; verification: "manual";
+    events?: ("normal-summon" | "special-summon")[]; damageStep?: true; oncePerTurn?: "source" };
+  filters: { monsters?: MonsterFilter & { attribute?: "DARK" | "LIGHT" | "EARTH" | "WATER" | "FIRE" | "WIND" | "DIVINE" } };
+  activation: {
+    checks: AbsentFaceUpCheck[];
+    choices: ({ id: string; kind: "position"; options: ("ATK" | "DEF")[] } |
+      { id: string; kind: "option"; options: string[] })[];
+    costs: (BanishCost | DiscardCost)[];
+    targets: [];
+  };
+  resolution: Operation[];
+  coverage: Coverage;
 }
 export interface BanishSummonAction {
-  schemaVersion: 2;
+  schemaVersion: 3;
   source: { zone: "graveyard"; player: "self" };
   timing: { kind: "ignition"; turn: "self"; phases: Phase[]; verification: "manual" };
   filters: Record<string, never>;
@@ -52,7 +73,7 @@ export interface BanishSummonAction {
   coverage: Coverage;
 }
 export interface SummonChoiceAction {
-  schemaVersion: 2;
+  schemaVersion: 3;
   source: { zone: "monster"; player: "self" };
   /** Events declare game timing; they do not install automatic native-event subscriptions. */
   timing: { kind: "optional-trigger"; turn: "either"; phases: Phase[]; verification: "manual";
@@ -67,8 +88,15 @@ export interface SummonChoiceAction {
   resolution: [BranchOperation];
   coverage: Coverage;
 }
-/** Executable compositions currently implemented. Reusable operations alone do not permit arbitrary programs. */
-export type CardAction = BanishSummonAction | SummonChoiceAction;
+export interface DiscardSendAction {
+  schemaVersion: 3;
+  source: { zone: "monster"; player: "self" };
+  timing: { kind: "ignition"; turn: "self"; phases: ("M1" | "M2")[]; verification: "manual"; oncePerTurn: "source" };
+  filters: { monsters: { cardType: "monster"; attribute: "DARK" | "LIGHT" | "EARTH" | "WATER" | "FIRE" | "WIND" | "DIVINE" } };
+  activation: { checks: []; choices: []; costs: [{ op: "discard"; from: "hand"; filter: "monsters"; count: 1; reason: "cost" }]; targets: [] };
+  resolution: [{ op: "send-to-graveyard"; from: "deck"; filter: "monsters"; count: 1; shuffle: true; reason: "effect" }];
+  coverage: Coverage;
+}
 /** id is the stable effect ID for this card; identical IDs across enabled lists conflict. */
 export interface CardRule { id: string; card: CardSelector; label: string; action: CardAction }
 export interface CardRuleList {
@@ -91,6 +119,7 @@ export interface ContractValidator {
     absentFaceUpCards?: CardSelector[]; onNoMonsterZone?: "destroy" }): BanishSummonAction;
   summonChoiceAction(options: { monsterCards?: CardSelector[]; monsterNamePrefixes?: string[];
     destructionMinimum?: 0 | 1; searchAbsentFaceUpCards?: CardSelector[] }): SummonChoiceAction;
+  discardSendAction(options: { attribute: DiscardSendAction["filters"]["monsters"]["attribute"] }): DiscardSendAction;
 }
 
 /** Developer API only. These callbacks cannot appear in imported JSON. */
