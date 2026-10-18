@@ -1,6 +1,6 @@
 # Automation contracts
 
-Status: implemented. Spec (1) is **card action version 1**. Spec (2) is
+Status: implemented. Spec (1) is **card action version 2**. Spec (2) is
 **card rule list version 4**. These replace the flat schema-3 list format.
 They describe the current executor, not a complete Yu-Gi-Oh! rules engine.
 
@@ -8,7 +8,7 @@ They describe the current executor, not a complete Yu-Gi-Oh! rules engine.
 
 | Contract | Machine-readable source | Responsibility |
 | --- | --- | --- |
-| Spec (1): an action definition | [card-action-v1.schema.json](../schemas/card-action-v1.schema.json) | Complete supported prerequisites, activation costs and resolution pipeline |
+| Spec (1): an action definition | [card-action-v2.schema.json](../schemas/card-action-v2.schema.json) | Complete supported prerequisites, activation costs and resolution pipeline |
 | Spec (2): a portable list | [card-rule-list-v4.schema.json](../schemas/card-rule-list-v4.schema.json) | List metadata and entries containing card metadata plus a spec-(1) `action` |
 | Developer callbacks and subscriptions | [automation.d.ts](../contracts/automation.d.ts) | Typed event and helper API; callbacks belong to extension code |
 | Runtime validation | [enhancer-core.js](../extension/shared/enhancer-core.js) | Structural checks, identity consistency, unique rule IDs, transport limits and normalization |
@@ -20,7 +20,13 @@ unknown document fields are rejected. Configure editors with the external schema
 TypeScript types aid authors; they do not enforce lengths, uniqueness, pipeline
 cardinality or all runtime conditions.
 
-The extension owns the contract. The extractor vendors the validator and both
+The extension owns the contract. The JSON action schema is the structural source
+of truth: sync embeds its exact supported snapshot in enhancer-core, using a
+small dependency-free validator for only the schema keywords present here.
+That validator is internal, not a general user-provided JSON Schema interpreter.
+Independent Draft 2020-12 mutation checks verify parity.
+
+The extension owns the implementation. The extractor vendors the validator and both
 schemas so it remains independently usable without an extension checkout.
 `node scripts/sync-automation-contracts.mjs` updates those copies;
 `node scripts/sync-automation-contracts.mjs --check` detects drift when the optional
@@ -28,95 +34,130 @@ extractor checkout is initialized. Ordinary builds/tests do not initialize or
 download either submodule. The exporter, extractor and rules helper must produce
 the same format; neither submodule is a runtime dependency.
 
-## Spec (1): card action
+## Spec (1): effect lifecycle
 
-An action contains exactly `schemaVersion`, `requires`, `activation` and
-`resolution`. Version 1 accepts **two complete pipeline shapes**, not arbitrary
-combinations of individually recognized operations. Each array has exactly the
-cardinality defined below. There are no user expressions, executable callbacks,
-arbitrary commands, URLs, subscriptions or JavaScript in action JSON.
-
-```json
-{
-  "schemaVersion": 1,
-  "requires": { "sourceZone": "graveyard", "ownTurn": true, "phases": ["M1", "M2"] },
-  "activation": [{ "op": "banish", "card": "source" }],
-  "resolution": [{
-    "op": "special-summon", "from": "deck",
-    "card": { "passcode": "09000002", "name": "Example Result" },
-    "positions": ["ATK", "DEF"]
-  }]
-}
-```
-
-The source is the concrete card instance chosen through the native menu. Its
-printed identity and display label come from the enclosing list entry. An
-extractor's per-card `result.rule.action` follows this spec;
-`result.rule` is the enclosing spec-(2) entry. Extraction reports also contain
-diagnostics, Lua analysis and research; they are not themselves importable lists.
-Unsupported/ambiguous results are diagnostics, never executable partial actions.
-
-### Graveyard banish and Deck summon
-
-`requires.sourceZone` is `graveyard`, `ownTurn` is `true`, and `phases` contains
-1–6 distinct phase codes (`DP`, `SP`, `M1`, `BP`, `M2`, `EP`). The optional
-`absentFaceUpCards` contains 1–10 identity selectors. None may be face-up on
-either player's ordinary field zones when declaring or paying cost. A negated
-continuous effect still blocks; its adjudication remains manual.
-
-`activation` is exactly `[{ "op": "banish", "card": "source" }]`.
-The engine declares once, waits for receipt/execution, sends the cost, and
-confirms the source is banished before releasing resolution. Cancellation does
-not refund it.
-
-`resolution` contains one `special-summon` from `deck`, one identity selector,
-and 1–2 distinct `positions` (`ATK`, `DEF`). Source and result identities can
-differ. Multiple positions require a player choice; the engine chooses the
-first free monster zone. Activation checks a nonempty Deck and a free zone,
-but cannot prove a matching hidden Deck copy exists. Resolution uses only a
-fresh native Deck-search response, paired with the current Deck instances.
-
-Optional `onNoMonsterZone: "destroy-to-graveyard"` sends a matching Deck copy
-to the Graveyard if the field fills after cost. It still requires a free zone
-at activation. Without it, a full field stops resolution. Native `To GY` is
-movement; the journal's destruction description does not implement destruction
-consequences, replacements or protection. Search closure uses the native shuffle;
-the extension sends no duplicate shuffle.
-
-### Manually timed summon choice
-
-`requires` is exactly `sourceZone: "monster"`, `ownTurn: false`,
-`trigger: "normal-or-special-summon"` and all six distinct phases. Here
-`ownTurn: false` means **either player's turn**, not opponent-only. The trigger
-is a timing declaration for the human, not an automatic event subscription or
-proof that the last action was a qualifying summon. Optional timing, missed
-timing and the Damage Step remain manual. There is no activation cost.
-
-`activation` is empty. `resolution` contains one `choose-search-or-destroy`:
+Action version 2 separates the semantic effect definition from native commands.
+It follows the useful divisions in YGOPRO: registration/timing, activation
+legality checks, activation choices, costs, targets and resolution operations.
+It does not execute Lua, register arbitrary user callbacks or claim that
+Duelingbook implements a simulator's rules engine.
 
 | Field | Meaning |
 | --- | --- |
-| `monsterCards` | 1–500 explicit identity selectors; mutually exclusive with prefixes |
-| `monsterNamePrefixes` | Historical alternative: 1–10 prefixes, each at most 80 characters, ending in a literal space; matching ignores case |
-| `searchAbsentFaceUpCards` | Required array of 0–10 prohibiting identities; checked on both fields, including again before adding |
-| `destructionMinimum` | Optional `0` or `1`; omitted means `0` |
+| `schemaVersion` | `2`, independent of the list-envelope version |
+| `source` | Source zone and acting player; the concrete source copy comes from the native menu |
+| `timing` | Effect kind, turn scope, phases and explicitly manual timing verification |
+| `filters` | Named card predicates used by operations/count expressions |
+| `activation.checks` | Restrictions checked before declaration/cost |
+| `activation.choices` | Player decisions made before declaration and retained for resolution |
+| `activation.costs` | Operations with reason `cost`; payment is not resolution |
+| `activation.targets` | Cards targeted at activation; empty in both supported compositions |
+| `resolution` | Operations with effect semantics and references to activation choices |
+| `coverage` | Required structured disclosure of remaining manual responsibilities |
 
-Choose search or destruction before declaring. Only choices available at that
-point can be selected later. Changing the effect while waiting requires a fresh
-opponent approval. Source departure after activation does not itself cancel
-the effect. The engine does not reconstruct an earlier summon or its properties.
+The current executable subset accepts two complete compositions. The operation
+vocabulary is reusable, but arbitrary compositions, new expression types and
+new timing kinds are rejected until an adapter implements them. Empty stages
+remain explicit. The exact cardinalities/constants are normative in the schema.
+There are no list-supplied JavaScript, callbacks, native commands or URLs.
 
-Search adds and reveals one matching monster from the current Deck and closes
-the view for the native shuffle. Identical Deck copies are grouped for display
-while retaining a concrete instance. An empty/no-match search cannot add a
-cached card. Destruction counts your other face-up matching monsters at
-resolution, excluding the source, and chooses up to that many field Spells/Traps.
-Field copies remain separate. If no matching monsters/eligible cards remain,
-the effective minimum is zero. Eligible opponent face-down cards expose no
-cached name or art. Committed choices send native Target markers for visibility;
-selection remains non-targeting in the effect's rules sense. Your cards are moved
-sequentially; the opponent moves their own cards. Simultaneous consequences,
-prevention and replacement effects remain manual.
+### Graveyard ignition and Deck summon
+
+`source` is `{ "zone": "graveyard", "player": "self" }`. Timing is
+`kind: "ignition"`, `turn: "self"`, `verification: "manual"`, and 1-6
+unique phases from `DP SP M1 BP M2 EP`. Filters are empty. An optional activation
+check has `check: "absent-face-up"` and up to 10 card identities; it scans both
+ordinary fields before declaration and again before cost. An empty check array
+means no such restriction. Negated continuous effects still need adjudication.
+
+The position choice has ID `position`, kind `position`, and one or both of
+`ATK`, `DEF`. Costs contain exactly
+`{ "op": "banish", "card": "source", "reason": "cost" }`.
+Targets are empty. Resolution contains one `special-summon` from `deck` with a
+card selector, `position: { "choice": "position" }` and `reason: "effect"`.
+The engine reads the selected position, declares once, confirms cost payment,
+then resolves after explicit release or a fresh opponent signal.
+
+Source/result identities may differ. Activation requires a nonempty Deck and
+free monster zone but cannot prove a legal matching hidden copy exists. The
+adapter uses a fresh native Deck view and a concrete instance. It picks the
+first free monster zone. `IsCanBeSpecialSummoned`, replacement effects and other
+legality remain manual. Cancellation cannot refund the cost.
+
+Optional `onNoMonsterZone: { "op": "destroy", "reason": "effect" }`
+expresses destruction of the matching Deck copy if the zones fill before
+resolution. The adapter implements native movement to Graveyard; it does not
+implement destruction consequences. A free zone is still required at activation.
+Without this operation the adapter stops on a full field. Native search closure
+performs the shuffle; no duplicate shuffle command is sent.
+
+### Summon trigger with an activation choice
+
+`source` is `{ "zone": "monster", "player": "self" }`. Timing is
+`kind: "optional-trigger"`, `turn: "either"`, all six phases,
+`events: ["normal-summon", "special-summon"]`, `damageStep: true` and
+`verification: "manual"`. These events describe **game timing**, not normalized
+website messages and not an automatic subscription. The player must establish
+that a qualifying summon/window occurred, including missed timing and Damage Step.
+A native summon event cannot prove that an effect is legally activatable.
+
+`filters.monsters` requires `cardType: "monster"` and exactly one of:
+
+- `cards`: 1-500 printed identity selectors, a static membership snapshot;
+- `namePrefixes`: 1-10 prefixes, at most 80 characters each, ending with a literal
+  space. This historical fallback matches case-insensitively.
+
+Activation has no global checks, costs or targets. Its choice has ID `mode`,
+kind `option` and options `search`, `destroy`. Resolution contains a `branch`
+referencing `mode`; its `cases` contain the separate operations below. The
+adapter checks branch availability before activation and retains the allowed
+choices. Changing mode during the response wait invalidates previous approval.
+Once resolution starts the mode is locked. No second declaration is sent.
+
+The **search** operation has `from: "deck"`, `to: "hand"`,
+`filter: "monsters"`, `count: 1`, `reveal: true`, `shuffle: true` and branch
+`checks` for absent-face-up prohibitions. Those restrictions block only search
+and are rechecked at resolution. It selects one current matching Deck monster,
+adds/reveals it and closes the native view for the shuffle. Grouping identical
+copies in the picker retains a concrete instance. A changed Deck or unavailable
+identity cannot be replaced with cached hidden information.
+
+The **destroy** operation has `reason: "effect"` and an explicit `selection`:
+`at: "resolution"`, `from: "field"`, `players: "both"`,
+`cardTypes: ["spell", "trap"]`, `minimum: 0 | 1`, and a `maximum.count`
+expression counting your other face-up monsters matching `monsters`. That count
+specifies `zone: "monster"`, `player: "self"`, `faceUp: true`,
+`exclude: "source"`, `filter: "monsters"`. It is recomputed at resolution.
+If no matching monsters/eligible cards remain, the adapter allows zero movements.
+No activation targets are created: selecting at resolution is a separate concept.
+
+Committed selections send native Target markers for visibility. Those markers
+are UI annotations, not proof of rules targeting. The adapter moves your cards
+sequentially and waits for the opponent to move theirs. It confirms Graveyard
+placement but does not implement simultaneous destruction consequences,
+protection or replacements. Hidden opponent field cards never reveal cached
+names/art. Source departure after activation does not itself cancel the effect.
+
+### Structured coverage
+
+`coverage.level` is currently only `assisted`. Its unique `manual` codes are
+required, checked against the operation composition, and rendered in the duel
+panel after effect selection. A list cannot omit or claim away known limitations.
+The executor also retains concrete warning text during search/destruction.
+
+Both compositions require `activation-legality`, `responses-and-chains`,
+`negation`, `replacement-and-protection`, `movement-consequences`. Ignition also
+requires `special-summon-legality`. Summon choice requires `trigger-window`,
+`dynamic-card-properties`, `opponent-movement`. Additional recognized manual
+codes may be disclosed. These codes describe responsibilities, not implemented
+capabilities or a promise of full legality. Full text lives in `AUTOMATION_MANUAL`.
+
+An extractor result's `rule.action` follows spec (1); `rule` is a spec-(2) entry.
+The report's Lua/research details are diagnostics and not importable list syntax.
+Builders `banishSummonAction`/`summonChoiceAction` create the supported lifecycle
+shapes; import and producer boundaries still validate them. Reviewed historical
+facts retain their independent sidecar format; the compiler translates those
+facts into these operations and coverage requirements.
 
 ## Spec (2): portable rule list
 
@@ -132,11 +173,24 @@ prevention and replacement effects remain manual.
     "card": { "passcode": "09000001", "name": "Example Source" },
     "label": "Banish this copy; summon from Deck",
     "action": {
-      "schemaVersion": 1,
-      "requires": { "sourceZone": "graveyard", "ownTurn": true, "phases": ["M1", "M2"] },
-      "activation": [{ "op": "banish", "card": "source" }],
+      "schemaVersion": 2,
+      "source": { "zone": "graveyard", "player": "self" },
+      "timing": { "kind": "ignition", "turn": "self", "phases": ["M1", "M2"], "verification": "manual" },
+      "filters": {},
+      "activation": {
+        "checks": [],
+        "choices": [{ "id": "position", "kind": "position", "options": ["DEF"] }],
+        "costs": [{ "op": "banish", "card": "source", "reason": "cost" }],
+        "targets": []
+      },
       "resolution": [{ "op": "special-summon", "from": "deck",
-        "card": { "passcode": "09000002", "name": "Example Result" }, "positions": ["DEF"] }]
+        "card": { "passcode": "09000002", "name": "Example Result" },
+        "position": { "choice": "position" }, "reason": "effect" }],
+      "coverage": {
+        "level": "assisted",
+        "manual": ["activation-legality", "responses-and-chains", "negation",
+          "replacement-and-protection", "movement-consequences", "special-summon-legality"]
+      }
     }
   }]
 }
@@ -170,9 +224,17 @@ may hit this limit before reaching 500 members. Export's indentation also counts
 import and omitted from export. Local watch is an explicit development action:
 new watched lists are enabled; replacements preserve local enablement and format
 overrides. These settings are not publisher authority. Shared files should omit
-`enabled`. Importing the same list ID replaces it after preview. Enabled overlapping
-entries for the same card/format block execution, including multiple separate
-effects in one list; use the supported combined choice action where appropriate.
+`enabled`. Importing the same list ID replaces it after preview. Each entry ID
+identifies one effect on that card, not the whole card. Use stable
+IDs across revisions and publishers when referring to the same effect. Several
+distinct effect IDs may match a card. The native menu then asks for an effect
+before declaring, paying cost or selecting its activation mode/position.
+Same-card/same-effect-ID implementations in enabled lists conflict and are
+disabled in the chooser. Different IDs are treated as distinct effects even if
+one publisher actually renamed an existing effect; equivalence is not inferred.
+An effect choice is fixed for a run. Changing settings/game state or making a
+manual action cancels a pending chooser; it also expires after 120 seconds.
+The chosen adapter acquires the duel lock before it can send a command.
 
 ## Events, subscriptions and callbacks
 
@@ -226,8 +288,10 @@ feeds `runtime.observe(event)`. Its native Send wrapper calls
 `changed(snapshot)` render callback and optional monotonic clock. `snapshot()`
 is null before preparation, otherwise a UI snapshot with state, message, source
 metadata and journal. It is not an immutable public event or a serializable resume
-token; consumers must not mutate it. Trigger snapshots additionally expose effect
-options/card choices/minimum/maximum; banish snapshots expose position/costPaid.
+token; consumers must not mutate it. Prepared effect snapshots expose `effectId`
+and `manualResponsibilities`. The effect chooser exposes `effectPicker` and
+effect options before an adapter starts. Trigger snapshots additionally expose
+mode/card choices/minimum/maximum; banish snapshots expose position/costPaid.
 
 User controls call `prepare`, `begin`, `choose` (position), `selectMode`,
 `selectCard`, `confirmCards`, `release` or `cancel`. `available` controls menu
@@ -281,7 +345,8 @@ fail closed instead of producing a plausible partial effect.
 `mergeRules` validates the destination, requires every requested result to be
 supported, rechecks historical approval, preserves existing effect IDs and checks
 the final list/byte limit. More than one existing effect for a card requires a
-manual merge. Writes use a temporary file and recheck that the original has not
+manual merge; the current extractor recognizes one logical effect per source
+pattern and will not guess which custom effect ID to replace. Writes use a temporary file and recheck that the original has not
 changed. This check is not a cross-process lock: a narrow concurrent-write race
 remains between checking and renaming. The Edison helper handles each card
 independently; earlier successful writes survive later failures. Its output list
@@ -295,13 +360,14 @@ in each submodule have their own Git history; this work does not publish them.
 
 ## Breaking upgrade and extension policy
 
-Schema 1–3 lists are rejected; there is no runtime migration or fallback. Export
-old installed data before upgrading, then change the list version marker to 4
-and move each entry's `requires`, `activation`, `resolution` into
-`action: { "schemaVersion": 1, ... }`. Keep `id`, `card` and `label` on the entry.
-Validate/reimport and enable the list again. Invalid persisted lists are removed
-from sanitized settings. The checked-in Edison list has been converted; restart
-watching with that valid file if an old watched list was discarded.
+List schemas 1-3 and action schema 1 are rejected; there is no runtime migration
+or fallback. The list envelope remains version 4 because its shape is unchanged;
+the nested action is now version 2. Recompile through the updated extractor or
+rewrite actions using the lifecycle above. Keep list ID, effect ID, card and
+label stable, bump the publisher version, validate/reimport and enable again.
+Export old installed data before upgrading. Invalid persisted lists are removed
+from sanitized settings. The checked-in Edison list version 3.0.0 has been
+converted; restart watching with that valid file if an old list was discarded.
 
 List content `version`, list `schemaVersion`, and action `schemaVersion` serve
 different purposes. Keep a version immutable once shared. Adding accepted action
@@ -326,7 +392,7 @@ exceptions remain in the rules repository.
 | C04 | Arbitrary costs, targets, draws, LP, counters, tokens, materials and operation composition | Reject unsupported action shapes; event helpers do not make them importable |
 | C05 | Protection, replacement, destruction consequences and simultaneous movement | Native movement plus human adjudication |
 | C06 | Dynamic names/types/archetypes, IsAbleToHand and full legality | Printed identity snapshots and bounded filters |
-| C07 | Separate independently selectable effects on one card | Overlaps blocked; current combined choice pipeline only |
+| C07 | Automatic equivalence detection between publisher effect IDs | Distinct effects have a chooser; identical IDs conflict; authors maintain stable identity |
 | C08 | Automatic opponent control, multiplayer/tag and cross-device locking | Opponents move their cards; unsupported duel modes blocked |
 | C09 | Transactional rollback, reconnect resume and command retries | Stop and reconcile manually |
 | C10 | Automatic list updates, publisher verification, discovery and private URL auth | Explicit import/watch; no remote code |

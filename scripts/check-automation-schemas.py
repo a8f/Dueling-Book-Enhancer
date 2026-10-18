@@ -7,7 +7,7 @@ from referencing import Registry, Resource
 
 root = Path(__file__).resolve().parents[1]
 schemas = [json.loads((root / 'schemas' / name).read_text(encoding='utf-8'))
-           for name in ['card-action-v1.schema.json', 'card-rule-list-v4.schema.json']]
+           for name in ['card-action-v2.schema.json', 'card-rule-list-v4.schema.json']]
 registry = Registry()
 for schema in schemas:
     Draft202012Validator.check_schema(schema)

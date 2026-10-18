@@ -14,7 +14,7 @@
   let viewerMenu = null;
   const nativeDecorations = new Map();
   let lastRenderedState;
-  let host, title, status, positions, resolve, wait, cancel, source, journal, previousFocus, effects, choices, confirm;
+  let host, title, status, limitations, positions, resolve, wait, cancel, source, journal, previousFocus, effects, choices, confirm;
   const runtime = page.DBEnhancerCardAutomation.create({ page, getSettings, changed: render });
 
   function button(text, handler, parent) {
@@ -69,6 +69,8 @@
     status = document.createElement("p");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
+    limitations = document.createElement("p");
+    limitations.className = "source";
     positions = document.createElement("div");
     positions.className = "positions";
     positions.setAttribute("role", "group");
@@ -93,7 +95,7 @@
       else hide();
     }, footer);
     journal = document.createElement("ol");
-    for (const child of [title, source, status, positions, effects, choices, footer, journal]) section.appendChild(child);
+    for (const child of [title, source, status, limitations, positions, effects, choices, footer, journal]) section.appendChild(child);
     shadow.appendChild(section);
     // Keep native single-key duel shortcuts from handling panel interactions.
     for (const type of ["keydown", "keyup", "keypress"]) section.addEventListener(type, event => {
@@ -213,6 +215,8 @@
     title.textContent = value.cardName;
     source.textContent = value.list + " · " + value.version + " · " + value.effectLabel + (value.trigger ? "" : " · " + (value.position || "Choose position"));
     status.textContent = value.message;
+    limitations.textContent = (value.manualResponsibilities || []).join(" ");
+    limitations.hidden = !value.manualResponsibilities?.length;
     const configuring = ["choose", "declaring", "banishing", "ready", "waiting", "approved", "suspended"].includes(value.state);
     positions.hidden = !configuring || value.trigger;
     for (const element of positions.children) {

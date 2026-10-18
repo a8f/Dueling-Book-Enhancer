@@ -11,9 +11,7 @@ const { normalizeLocalUrl } = require("../extension/options/rule-list-download.j
 function fixture() {
   return { schemaVersion: 4, id: "test.local", name: "Local example", version: "1.0.0", formats: ["au"],
     rules: [{ id: "recruit", label: "Example effect", card: { passcode: "09000001", name: "Example card" },
-      action: { schemaVersion: 1, requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1"] },
-      activation: [{ op: "banish", card: "source" }],
-      resolution: [{ op: "special-summon", from: "deck", card: { passcode: "09000002", name: "Example result" }, positions: ["DEF"] }] } }] };
+      action: core.banishSummonAction({ phases: ["M1"], card: { passcode: "09000002", name: "Example result" }, positions: ["DEF"] }) }] };
 }
 function harness() {
   let text = JSON.stringify(fixture()), next, writes = [], failWrite = false;

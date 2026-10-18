@@ -4,18 +4,15 @@ const assert = require("node:assert/strict");
 const { existsSync } = require("node:fs");
 const core = require("../extension/shared/enhancer-core.js");
 
-const action = () => ({ schemaVersion: 1,
-  requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
-  activation: [{ op: "banish", card: "source" }],
-  resolution: [{ op: "special-summon", from: "deck", card: { passcode: "09000002", name: "Example Result" }, positions: ["DEF"] }] });
+const action = () => core.banishSummonAction({ card: { passcode: "09000002", name: "Example Result" }, positions: ["DEF"] });
 const list = () => ({ schemaVersion: 4, id: "example", name: "Example", version: "1.0.0", formats: ["so"],
   rules: [{ id: "effect", card: { passcode: "09000001", name: "Example Source" }, label: "Example effect", action: action() }] });
 
 test("spec 1 is independently validated and spec 2 embeds the same definition", () => {
   const input = action(), checked = core.validateAutomationAction(input);
   assert.deepEqual(checked, input);
-  checked.requires.phases.push("EP");
-  assert.equal(input.requires.phases.length, 2);
+  checked.timing.phases.push("EP");
+  assert.equal(input.timing.phases.length, 2);
   const imported = core.importAutomationList(JSON.stringify({ ...list(), enabled: true }));
   assert.equal(imported.enabled, false);
   assert.equal(JSON.parse(core.exportAutomationList(imported)).enabled, undefined);
@@ -24,18 +21,18 @@ test("spec 1 is independently validated and spec 2 embeds the same definition", 
 
 test("breaking contracts reject old, future, mixed and incomplete definitions", () => {
   for (const version of [1, 2, 3, 5]) assert.throws(() => core.validateAutomationList({ ...list(), schemaVersion: version }));
-  for (const key of ["schemaVersion", "requires", "activation", "resolution"]) {
+  for (const key of ["schemaVersion", "source", "timing", "filters", "activation", "resolution", "coverage"]) {
     const value = action(); delete value[key];
     assert.throws(() => core.validateAutomationAction(value), key);
   }
-  for (const extra of [{ schemaVersion: 2 }, { subscriptions: [] }, { callback: "send" }, { resolution: [{ op: "draw", count: 1 }] }]) {
+  for (const extra of [{ schemaVersion: 1 }, { subscriptions: [] }, { callback: "send" }, { resolution: [{ op: "draw", count: 1 }] }]) {
     assert.throws(() => core.validateAutomationAction({ ...action(), ...extra }));
   }
   const flat = list(); Object.assign(flat.rules[0], flat.rules[0].action); delete flat.rules[0].action;
   assert.throws(() => core.validateAutomationList(flat));
   const repeated = list(); repeated.formats.push("so");
   assert.throws(() => core.validateAutomationList(repeated));
-  const phases = action(); phases.requires.phases.push("M1");
+  const phases = action(); phases.timing.phases.push("M1");
   assert.throws(() => core.validateAutomationAction(phases));
 });
 
@@ -44,6 +41,24 @@ test("semantic validation crosses action and metadata boundaries", () => {
   assert.throws(() => core.validateAutomationList(value), /belongs to/);
   const duplicated = list(); duplicated.rules.push(structuredClone(duplicated.rules[0]));
   assert.throws(() => core.validateAutomationList(duplicated));
+});
+
+test("effect contracts reject unsupported lifecycle semantics and incomplete coverage", () => {
+  for (const mutate of [value => value.coverage.manual = [],
+    value => value.activation.costs[0].reason = "effect",
+    value => value.activation.targets.push({ card: "source" }),
+    value => value.resolution[0].position.choice = "missing",
+    value => value.timing.verification = "automatic",
+    value => value.timing.turn = "either",
+    value => value.resolution[0].onNoMonsterZone = { op: "send-to-graveyard", reason: "effect" }]) {
+    const value = action(); mutate(value);
+    assert.throws(() => core.validateAutomationAction(value));
+  }
+  const trigger = core.summonChoiceAction({ monsterNamePrefixes: ["Example "] });
+  const target = structuredClone(trigger); target.resolution[0].cases.destroy[0].selection.at = "activation";
+  assert.throws(() => core.validateAutomationAction(target));
+  trigger.coverage.manual = trigger.coverage.manual.filter(code => code !== "opponent-movement");
+  assert.throws(() => core.validateAutomationAction(trigger));
 });
 
 test("the transport limit counts UTF-8 bytes including whitespace", () => {

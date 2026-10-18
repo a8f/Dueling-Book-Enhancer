@@ -60,7 +60,7 @@
             "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
           },
           "card": {
-            "$ref": "card-action-v1.schema.json#/$defs/card"
+            "$ref": "card-action-v2.schema.json#/$defs/card"
           },
           "label": {
             "type": "string",
@@ -68,7 +68,7 @@
             "pattern": "\\S"
           },
           "action": {
-            "$ref": "card-action-v1.schema.json"
+            "$ref": "card-action-v2.schema.json"
           }
         },
         "required": [

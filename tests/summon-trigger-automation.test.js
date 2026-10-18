@@ -10,9 +10,7 @@ const createFeature = require("../extension/page/features/card-automation.js");
 function definition() {
   return { schemaVersion: 4, id: "test.trigger", name: "Trigger list", version: "1.0.0", formats: ["eu", "so"], enabled: true,
     rules: [{ id: "trigger", card: { passcode: "09000001", name: "Example Scout" }, label: "Summon choice",
-      action: { schemaVersion: 1, requires: { sourceZone: "monster", ownTurn: false, phases: ["DP", "SP", "M1", "BP", "M2", "EP"], trigger: "normal-or-special-summon" },
-      activation: [], resolution: [{ op: "choose-search-or-destroy", monsterNamePrefixes: ["Example HERO "],
-        searchAbsentFaceUpCards: [{ passcode: "09000009", name: "Example Search Blocker" }] }] } }] };
+      action: core.summonChoiceAction({ monsterNamePrefixes: ["Example HERO "], searchAbsentFaceUpCards: [{ passcode: "09000009", name: "Example Search Blocker" }] }) }] };
 }
 function harness() {
   const cards = [];
@@ -78,11 +76,11 @@ test("choice schema validates both contracts and rejects unsupported instruction
   const vendored = fs.existsSync(require("node:path").join(__dirname, "../card-rule-extractor/schema-4.mjs"))
     ? (await import("../card-rule-extractor/schema-4.mjs")).default : null;
   for (const api of [core, vendored].filter(Boolean)) {
-    assert.equal(api.importAutomationList(JSON.stringify(definition())).rules[0].action.requires.ownTurn, false);
-    for (const mutate of [list => list.rules[0].action.requires.trigger = "flip-summon", list => list.rules[0].action.activation.push({ op: "banish", card: "source" }),
-      list => list.rules[0].action.resolution[0].monsterNamePrefixes = [], list => list.rules[0].action.resolution[0].monsterNamePrefixes = ["HERO"],
-      list => list.rules[0].action.requires.phases = ["M1"], list => list.rules[0].action.resolution[0].script = "arbitrary",
-      list => list.rules[0].action.resolution[0].searchAbsentFaceUpCards[0].passcode = "09000001"]) {
+    assert.equal(api.importAutomationList(JSON.stringify(definition())).rules[0].action.timing.turn, "either");
+    for (const mutate of [list => list.rules[0].action.timing.events = "flip-summon", list => list.rules[0].action.activation.costs.push({ op: "banish", card: "source" }),
+      list => list.rules[0].action.filters.monsters.namePrefixes = [], list => list.rules[0].action.filters.monsters.namePrefixes = ["HERO"],
+      list => list.rules[0].action.timing.phases = ["M1"], list => list.rules[0].action.resolution[0].script = "arbitrary",
+      list => list.rules[0].action.resolution[0].cases.search[0].checks[0].cards[0].passcode = "09000001"]) {
       const value = definition(); mutate(value);
       assert.throws(() => api.importAutomationList(JSON.stringify(value)));
     }
@@ -540,10 +538,10 @@ test("destruction keeps identical field copies separate and never shows hidden o
 
 test("database-backed monster selectors match identity, not family-looking names, and enforce the Lua destruction minimum", () => {
   const h = harness();
-  const step = h.settings.automationLists[0].rules[0].action.resolution[0];
-  delete step.monsterNamePrefixes;
-  step.monsterCards = [{ passcode: "09000002", name: "Example HERO Search" }];
-  step.destructionMinimum = 1;
+  const action = h.settings.automationLists[0].rules[0].action;
+  delete action.filters.monsters.namePrefixes;
+  action.filters.monsters.cards = [{ passcode: "09000002", name: "Example HERO Search" }];
+  action.resolution[0].cases.destroy[0].selection.minimum = 1;
   assert.doesNotThrow(() => core.validateAutomationList(h.settings.automationLists[0]));
   h.start("search"); h.ack(); h.runtime.tick();
   assert.deepEqual(h.runtime.snapshot().choices.map(choice => choice.label), ["Example HERO Search"]);
@@ -624,4 +622,21 @@ test("default multi-card selection auto-finishes at the maximum and still suppor
   const fewer = harness(); fewer.settings.automationConfirmSelections = false; fewer.self.m3 = fewer.target;
   fewer.start("destroy"); fewer.runtime.selectCard("5"); fewer.runtime.confirmCards();
   assert.equal(fewer.commands.at(-1).play, "To GY");
+});
+
+test("native UI selects a distinct card effect before choosing its activation mode", () => {
+  const h = harness(), second = structuredClone(h.settings.automationLists[0].rules[0]);
+  second.id = "second-summon-effect"; second.label = "Second summon effect";
+  h.settings.automationLists[0].rules.push(second);
+  const ui = selectionUI(h);
+  h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" });
+  const button = ui.nodes.find(node => node.dataset?.effect === "effect:1");
+  assert.ok(button); assert.equal(h.commands.length, 0);
+  button.listeners.click();
+  assert.equal(h.runtime.snapshot().effectId, "second-summon-effect");
+  assert.equal(h.runtime.snapshot().state, "choose");
+  assert.equal(h.commands.length, 0);
+  h.runtime.begin("search"); h.ack(); h.runtime.tick();
+  assert.equal(h.commands.at(-1).play, "View deck");
+  assert.ok(h.runtime.snapshot().manualResponsibilities.some(text => text.includes("trigger window")));
 });

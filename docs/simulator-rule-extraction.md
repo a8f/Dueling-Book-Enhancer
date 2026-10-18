@@ -1,6 +1,6 @@
 # Optional simulator extractor
 
-Outputs use [action schema 1 and list schema 4](automation-contracts.md).
+Outputs use [action schema 2 and list schema 4](automation-contracts.md).
 A supported per-card result exposes the spec-(1) definition as `rule.action`;
 `--write` and the Edison batch helper produce spec-(2) lists. Older list formats
 must be converted before writing. The extractor vendors both schemas and the

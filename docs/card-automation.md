@@ -61,6 +61,11 @@ be located, the panel falls back to individual card choices. Field cards remain
 separate choices by zone. Names/types/archetypes changed
 by effects, chains, negation and replacement effects are adjudicated manually.
 
+When multiple distinct effect entries match a card, first choose an effect.
+This sends no declaration or cost. Duplicate effect IDs across enabled lists
+are conflicting implementations and cannot execute. The chosen effect's manual
+responsibilities appear in the panel.
+
 The native card menu offers **Resolve now** to declare and begin resolution
 after any required effect/position choice, or **Wait for opponent** to declare and wait for a fresh opponent
 thumbs-up. When multiple effects are available, choose one before the card is
@@ -136,7 +141,7 @@ bundled into the extension by this workflow.
 ## Formal contracts
 
 [Automation contracts](automation-contracts.md) defines spec (1), card action
-version 1, and spec (2), list version 4, with JSON Schemas and TypeScript
+version 2, and spec (2), list version 4, with JSON Schemas and TypeScript
 contracts. Each list entry contains card metadata and a nested `action`.
 The document covers both executable pipelines, event/callback subscriptions,
 validation, producer requirements, limitations, the capability backlog and

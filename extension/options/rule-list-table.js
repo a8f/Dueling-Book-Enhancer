@@ -99,9 +99,9 @@
           const row = element("tr");
           row.appendChild(element("td", card.name + " (" + card.identifier + ")", "rules-card-name"));
           const labels = card.rules.map(rule => rule.label);
-          const zones = [...new Set(card.rules.map(rule => rule.action.requires.sourceZone))];
-          const phases = [...new Set(card.rules.flatMap(rule => rule.action.requires.phases))].map(phase => phaseNames[phase]);
-          const positions = [...new Set(card.rules.flatMap(rule => rule.action.resolution.flatMap(step => step.positions || [])))];
+          const zones = [...new Set(card.rules.map(rule => rule.action.source.zone))];
+          const phases = [...new Set(card.rules.flatMap(rule => rule.action.timing.phases))].map(phase => phaseNames[phase]);
+          const positions = [...new Set(card.rules.flatMap(rule => rule.action.activation.choices.filter(choice => choice.kind === "position").flatMap(choice => choice.options)))];
           for (const text of [labels.join(" · "), zones.map(zone => zone === "graveyard" ? "Graveyard" : zone).join(", "),
             phases.join(", "), positions.join(" / ")]) row.appendChild(element("td", text));
           body.appendChild(row);

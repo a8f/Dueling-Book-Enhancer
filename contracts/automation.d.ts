@@ -4,24 +4,72 @@ export type Format = "ar" | "au" | "er" | "eu" | "gr" | "gu" | "yu" | "cu" | "su
 export type CardSelector = { name: string } & (
   { passcode: string; id?: never } | { id: number; passcode?: never }
 );
+export type ManualResponsibility = "activation-legality" | "responses-and-chains" | "negation" |
+  "replacement-and-protection" | "movement-consequences" | "special-summon-legality" |
+  "trigger-window" | "dynamic-card-properties" | "opponent-movement";
+export interface Coverage { level: "assisted"; manual: ManualResponsibility[] }
+export interface AbsentFaceUpCheck { check: "absent-face-up"; cards: CardSelector[] }
+export interface BanishCost { op: "banish"; card: "source"; reason: "cost" }
+export interface SpecialSummonOperation {
+  op: "special-summon";
+  from: "deck";
+  card: CardSelector;
+  position: { choice: "position" };
+  reason: "effect";
+  onNoMonsterZone?: { op: "destroy"; reason: "effect" };
+}
+export type MonsterFilter = { cardType: "monster" } & (
+  { cards: CardSelector[]; namePrefixes?: never } | { namePrefixes: string[]; cards?: never }
+);
+export interface SearchOperation {
+  op: "search"; from: "deck"; to: "hand"; filter: "monsters"; count: 1; reveal: true; shuffle: true;
+  checks: AbsentFaceUpCheck[];
+}
+export interface DestroyOperation {
+  op: "destroy";
+  reason: "effect";
+  selection: {
+    at: "resolution"; from: "field"; players: "both"; cardTypes: ("spell" | "trap")[]; minimum: 0 | 1;
+    maximum: { count: { zone: "monster"; player: "self"; faceUp: true; exclude: "source"; filter: "monsters" } };
+  };
+}
+export interface BranchOperation {
+  op: "branch"; choice: "mode";
+  cases: { search: [SearchOperation]; destroy: [DestroyOperation] };
+}
 export interface BanishSummonAction {
-  schemaVersion: 1;
-  requires: { sourceZone: "graveyard"; ownTurn: true; phases: Phase[]; absentFaceUpCards?: CardSelector[] };
-  activation: [{ op: "banish"; card: "source" }];
-  resolution: [{ op: "special-summon"; from: "deck"; card: CardSelector; positions: ("ATK" | "DEF")[];
-    onNoMonsterZone?: "destroy-to-graveyard" }];
+  schemaVersion: 2;
+  source: { zone: "graveyard"; player: "self" };
+  timing: { kind: "ignition"; turn: "self"; phases: Phase[]; verification: "manual" };
+  filters: Record<string, never>;
+  activation: {
+    checks: AbsentFaceUpCheck[];
+    choices: [{ id: "position"; kind: "position"; options: ("ATK" | "DEF")[] }];
+    costs: [BanishCost];
+    targets: [];
+  };
+  resolution: [SpecialSummonOperation];
+  coverage: Coverage;
 }
-export type MonsterFilter = { monsterCards: CardSelector[]; monsterNamePrefixes?: never } |
-  { monsterNamePrefixes: string[]; monsterCards?: never };
 export interface SummonChoiceAction {
-  schemaVersion: 1;
-  /** ownTurn:false means either player's turn. trigger is a manually adjudicated timing declaration. */
-  requires: { sourceZone: "monster"; ownTurn: false; phases: Phase[]; trigger: "normal-or-special-summon" };
-  activation: [];
-  resolution: [MonsterFilter & { op: "choose-search-or-destroy"; destructionMinimum?: 0 | 1;
-    searchAbsentFaceUpCards: CardSelector[] }];
+  schemaVersion: 2;
+  source: { zone: "monster"; player: "self" };
+  /** Events declare game timing; they do not install automatic native-event subscriptions. */
+  timing: { kind: "optional-trigger"; turn: "either"; phases: Phase[]; verification: "manual";
+    events: ("normal-summon" | "special-summon")[]; damageStep: true };
+  filters: { monsters: MonsterFilter };
+  activation: {
+    checks: [];
+    choices: [{ id: "mode"; kind: "option"; options: ("search" | "destroy")[] }];
+    costs: [];
+    targets: [];
+  };
+  resolution: [BranchOperation];
+  coverage: Coverage;
 }
+/** Executable compositions currently implemented. Reusable operations alone do not permit arbitrary programs. */
 export type CardAction = BanishSummonAction | SummonChoiceAction;
+/** id is the stable effect ID for this card; identical IDs across enabled lists conflict. */
 export interface CardRule { id: string; card: CardSelector; label: string; action: CardAction }
 export interface CardRuleList {
   schemaVersion: 4;
@@ -39,6 +87,10 @@ export interface ContractValidator {
   validateAutomationList(value: unknown): CardRuleList & { enabled: boolean };
   importAutomationList(text: string): CardRuleList & { enabled: false };
   exportAutomationList(list: unknown): string;
+  banishSummonAction(options: { card: CardSelector; phases?: Phase[]; positions?: ("ATK" | "DEF")[];
+    absentFaceUpCards?: CardSelector[]; onNoMonsterZone?: "destroy" }): BanishSummonAction;
+  summonChoiceAction(options: { monsterCards?: CardSelector[]; monsterNamePrefixes?: string[];
+    destructionMinimum?: 0 | 1; searchAbsentFaceUpCards?: CardSelector[] }): SummonChoiceAction;
 }
 
 /** Developer API only. These callbacks cannot appear in imported JSON. */

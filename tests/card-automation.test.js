@@ -11,9 +11,7 @@ const CARD = "Example Recruiter";
 function exampleList() {
   return { schemaVersion: 4, id: "test.example", name: "Example list", version: "1.0.0", enabled: true,
     formats: ["ar", "au"], rules: [{ id: "example-recruit", card: { passcode: "09000001", name: CARD }, label: "Example summon effect",
-      action: { schemaVersion: 1, requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
-      activation: [{ op: "banish", card: "source" }],
-      resolution: [{ op: "special-summon", from: "deck", card: { passcode: "09000001", name: CARD }, positions: ["ATK", "DEF"] }] } }] };
+      action: core.banishSummonAction({ phases: ["M1", "M2"], card: { passcode: "09000001", name: CARD }, positions: ["ATK", "DEF"] }) }] };
 }
 
 function card(instanceId, cardName = CARD, databaseId = cardName === CARD ? 90000001 : 90000002) {
@@ -131,8 +129,8 @@ test("only a matching local graveyard card in selected formats and a free zone i
 
 function historicalRule(h) {
   const rule = h.settings.automationLists[0].rules[0];
-  rule.action.requires.absentFaceUpCards = [{ passcode: "09000004", name: "Example Prohibition" }];
-  rule.action.resolution[0].onNoMonsterZone = "destroy-to-graveyard";
+  rule.action.activation.checks = [{ check: "absent-face-up", cards: [{ passcode: "09000004", name: "Example Prohibition" }] }];
+  rule.action.resolution[0].onNoMonsterZone = { op: "destroy", reason: "effect" };
   return rule;
 }
 
@@ -140,8 +138,8 @@ test("optional historical fields validate strictly and roundtrip with prerequisi
   const h = harness(); historicalRule(h);
   const fixture = h.settings.automationLists[0];
   assert.deepEqual(core.importAutomationList(core.exportAutomationList(fixture)).rules, fixture.rules);
-  for (const invalid of [[], "anything", [{ name: "No identifier" }], Array(11).fill({ passcode: "09000004", name: "Example Prohibition" })]) {
-    const copy = structuredClone(fixture); copy.rules[0].action.requires.absentFaceUpCards = invalid;
+  for (const invalid of ["anything", [{ name: "No identifier" }], Array(11).fill({ passcode: "09000004", name: "Example Prohibition" })]) {
+    const copy = structuredClone(fixture); copy.rules[0].action.activation.checks[0].cards = invalid;
     assert.throws(() => core.validateAutomationList(copy));
   }
   for (const invalid of [null, "send-to-graveyard", { script: "anything" }]) {
@@ -373,9 +371,9 @@ test("missing deck copy stops after cost without summoning a cached identity", (
 test("card names, phase requirements and summon positions are supplied by the imported rule", () => {
   const h = harness();
   const rule = h.settings.automationLists[0].rules[0];
-  rule.action.requires.phases = ["SP"];
+  rule.action.timing.phases = ["SP"];
   rule.action.resolution[0].card = { passcode: "09000003", name: "Example Result" };
-  rule.action.resolution[0].positions = ["DEF"];
+  rule.action.activation.choices[0].options = ["DEF"];
   h.target.data("cardfront", { data: key => ({ id: 90000003, serial_number: "09000003", name: "Example Result", card_type: "Monster" })[key] });
   assert.equal(h.runtime.eligible(h.source), false);
   h.page.currentPhase = "SP";
@@ -627,7 +625,7 @@ test("quick summon requires ATK/DEF selection, then pays cost and summons in the
 });
 
 test("a rule with a single legal summon position may still auto-start", () => {
-  const h = harness(); h.settings.automationLists[0].rules[0].action.resolution[0].positions = ["DEF"];
+  const h = harness(); h.settings.automationLists[0].rules[0].action.activation.choices[0].options = ["DEF"];
   h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" });
   assert.equal(h.commands.at(-1).play, "Declare");
   assert.equal(h.runtime.snapshot().position, "DEF");
@@ -641,4 +639,44 @@ test("opponent Thinking during activation suspends an immediate flow after the c
   assert.equal(h.runtime.snapshot().state, "suspended");
   assert.equal(h.runtime.snapshot().costPaid, true);
   assert.equal(h.commands.length, 2);
+});
+
+test("distinct effects on the same card require a choice before any declaration or cost", () => {
+  const h = harness(), list = h.settings.automationLists[0];
+  const second = structuredClone(list.rules[0]); second.id = "second-effect"; second.label = "Second effect";
+  second.action.activation.choices[0].options = ["DEF"];
+  list.rules.push(second);
+  assert.equal(h.runtime.eligible(h.source), true);
+  assert.equal(h.runtime.prepare(h.source, { autoStart: true, mode: "resolve" }), true);
+  assert.equal(h.runtime.snapshot().effectPicker, true);
+  assert.equal(h.runtime.snapshot().options.length, 2);
+  assert.equal(h.commands.length, 0);
+  h.runtime.begin("effect:1");
+  assert.equal(h.runtime.snapshot().effectId, "second-effect");
+  assert.equal(h.commands.at(-1).play, "Declare");
+  assert.equal(h.runtime.snapshot().position, "DEF");
+  assert.ok(h.runtime.snapshot().manualResponsibilities.some(text => text.includes("Special Summoned")));
+  h.echo("Declare", { id: 1 }); h.runtime.tick();
+  assert.equal(h.commands.at(-1).play, "Banish");
+  // Editing a sibling effect must invalidate the selected procedure too.
+  list.rules[0].label = "Changed while paying cost";
+  h.echo("Banish", { id: 1 }); h.runtime.tick();
+  assert.equal(h.runtime.snapshot().finished, true);
+  assert.equal(h.commands.some(command => command.play === "View deck"), false);
+});
+
+test("duplicate effect implementations cannot run and pending effect choices expire on changes", () => {
+  const duplicate = harness(); duplicate.settings.automationLists.push({ ...exampleList(), id: "other" });
+  duplicate.runtime.prepare(duplicate.source);
+  assert.ok(duplicate.runtime.snapshot().options.every(option => option.disabled));
+  duplicate.runtime.begin("effect:0"); assert.equal(duplicate.commands.length, 0);
+  for (const mutate of [h => h.settings.automationLists[0].name = "Edited",
+    h => h.page.websocket = { readyState: 1 }, h => h.page.document.hidden = true,
+    h => h.page.turn_player = h.opponent, h => h.advance(120001)]) {
+    const h = harness(), second = structuredClone(h.settings.automationLists[0].rules[0]); second.id = "second";
+    h.settings.automationLists[0].rules.push(second); h.runtime.prepare(h.source);
+    mutate(h); h.runtime.tick(); h.runtime.begin("effect:1");
+    assert.equal(h.runtime.snapshot().finished, true);
+    assert.equal(h.commands.length, 0);
+  }
 });

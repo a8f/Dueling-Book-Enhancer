@@ -1,16 +1,11 @@
 // Synthetic schema/validator parity corpus. Also consumed by the optional Python check.
 const core = require("../../extension/shared/enhancer-core.js");
 const card = { passcode: "09000002", name: "Example Result" };
-const banish = { schemaVersion: 1,
-  requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"], absentFaceUpCards: [{ id: 9, name: "Example Blocker" }] },
-  activation: [{ op: "banish", card: "source" }],
-  resolution: [{ op: "special-summon", from: "deck", card, positions: ["ATK", "DEF"], onNoMonsterZone: "destroy-to-graveyard" }] };
-const trigger = { schemaVersion: 1,
-  requires: { sourceZone: "monster", ownTurn: false, phases: ["DP", "SP", "M1", "BP", "M2", "EP"], trigger: "normal-or-special-summon" },
-  activation: [], resolution: [{ op: "choose-search-or-destroy", monsterCards: [card], destructionMinimum: 1, searchAbsentFaceUpCards: [] }] };
+const banish = core.banishSummonAction({ card, absentFaceUpCards: [{ id: 9, name: "Example Blocker" }], onNoMonsterZone: "destroy" });
+const trigger = core.summonChoiceAction({ monsterCards: [card], destructionMinimum: 1 });
 const prefix = structuredClone(trigger);
-delete prefix.resolution[0].monsterCards;
-prefix.resolution[0].monsterNamePrefixes = ["Example "];
+delete prefix.filters.monsters.cards;
+prefix.filters.monsters.namePrefixes = ["Example "];
 const list = action => ({ schemaVersion: 4, id: "example", name: "Example list", version: "1.0.0", formats: ["so"], enabled: false,
   rules: [{ id: "effect", card: { id: 8, name: "Example Source" }, label: "Example effect", action }] });
 

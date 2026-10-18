@@ -1,8 +1,8 @@
 (function attach(root, factory) {
-  const api = factory();
+  const api = factory(typeof module === "object" && module.exports ? require("./enhancer-core.js") : root.DBEnhancerCore);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.DBEnhancerCardAutomation = api;
-})(typeof window !== "undefined" ? window : globalThis, function () {
+})(typeof window !== "undefined" ? window : globalThis, function (core) {
   "use strict";
   const passive = new Set(["Good", "Stop good", "Thinking", "Typing", "Duel message", "Add watcher", "Remove watcher"]);
   const id = card => card && card.data("id");
@@ -30,9 +30,9 @@
       (!page.websocket || page.websocket.readyState === 1);
     const idle = () => Array.isArray(page.actionsQueue) && page.actionsQueue.length === 0 && page.stopQueue === false;
     const zone = player => [1, 2, 3, 4, 5].find(index => !player["m" + index]);
-    const hasOverflowResolution = () => run?.rule.action.resolution[0].onNoMonsterZone === "destroy-to-graveyard";
+    const hasOverflowResolution = () => run?.rule.action.resolution[0].onNoMonsterZone?.op === "destroy";
     function prerequisiteProblem(rule) {
-      for (const selector of rule.action.requires.absentFaceUpCards || []) {
+      for (const selector of rule.action.activation.checks.flatMap(check => check.cards) || []) {
         for (const player of [page.player1, page.player2]) {
           const cards = [player?.fieldSpell, ...[1, 2, 3, 4, 5].flatMap(index => [player?.["m" + index], player?.["s" + index]])];
           if (cards.some(card => card && !card.data("face_down") && matches(selector, card))) {
@@ -50,7 +50,7 @@
       const player = local();
       return Boolean(live() && player && !card?.data("face_down") &&
         player.grave_arr.includes(card) && card.data("owner") === player &&
-        (getSettings().automationLists || []).some(list => list.rules.some(rule => matches(rule.card, card))));
+        (getSettings().automationLists || []).some(list => list.rules.some(rule => rule.action.source.zone === "graveyard" && matches(rule.card, card))));
     }
     function activationProblem(card) {
       if (!available(card)) return "Select your own face-up graveyard card in a live manual duel.";
@@ -67,8 +67,8 @@
       if (problem) return problem;
       const prerequisite = prerequisiteProblem(rule);
       if (prerequisite) return prerequisite;
-      if (rule.action.requires.ownTurn && page.turn_player !== local()) return "This rule requires your own turn.";
-      if (!rule.action.requires.phases.includes(page.currentPhase)) return "This rule requires phase " + rule.action.requires.phases.join(" or ") + ". Change phase, then open automation again.";
+      if ((rule.action.timing.turn === "self") && page.turn_player !== local()) return "This rule requires your own turn.";
+      if (!rule.action.timing.phases.includes(page.currentPhase)) return "This rule requires phase " + rule.action.timing.phases.join(" or ") + ". Change phase, then open automation again.";
       if (!local().main_arr.length) return "Your Deck is empty. The rule requires a matching card in your Deck.";
       if (!zone(local())) return "Free a monster zone before activating this effect.";
       if (!idle()) return "Wait for Duelingbook's current actions to finish, then open automation again.";
@@ -82,11 +82,11 @@
       const rule = rules[0];
       return Boolean(live() && player && rules.length === 1 && !identityProblem(rule, card) && !prerequisiteProblem(rule) &&
         !card.data("face_down") && player.grave_arr.includes(card) && card.data("owner") === player &&
-        player.main_arr.length && zone(player) && (!rule.action.requires.ownTurn || page.turn_player === player) && rule.action.requires.phases.includes(page.currentPhase));
+        player.main_arr.length && zone(player) && (!(rule.action.timing.turn === "self") || page.turn_player === player) && rule.action.timing.phases.includes(page.currentPhase));
     }
     function identityProblem(rule, source) {
       if (name(source) !== rule.card.name) return "The source card identifier and name do not match the rule. Correct the rules list.";
-      for (const selector of [rule.card, rule.action.resolution[0].card, ...(rule.action.requires.absentFaceUpCards || [])]) {
+      for (const selector of [rule.card, rule.action.resolution[0].card, ...(rule.action.activation.checks.flatMap(check => check.cards) || [])]) {
         const lookup = selector.passcode !== undefined ? page.getCardByPasscode : page.getCard;
         const known = typeof lookup === "function" ? lookup.call(page, selector.passcode ?? selector.id) : null;
         if (known && known.name && known.name !== selector.name) return "Card " + (selector.passcode ?? selector.id) + " belongs to " + known.name + ". Correct the rules list.";
@@ -96,7 +96,7 @@
     function snapshot() {
       if (!run) return null;
       return { state: run.state, message: run.message, position: run.position, costPaid: run.costPaid,
-        cardName: run.rule.card.name, effectLabel: run.rule.label, positions: run.rule.action.resolution[0].positions,
+        cardName: run.rule.card.name, effectLabel: run.rule.label, positions: run.rule.action.activation.choices[0].options,
         mode: run.mode,
         finished: run.finished, list: run.list.name, version: run.list.version, journal: run.journal.slice() };
     }
@@ -167,13 +167,13 @@
               "Choose ATK or DEF to activate and resolve this effect.");
             // Multiple legal positions are a player decision, even in quick
             // mode. Only an unambiguous single-position rule can auto-start.
-            if (autoStart && run.rule.action.resolution[0].positions.length === 1) begin(run.rule.action.resolution[0].positions[0]);
+            if (autoStart && run.rule.action.activation.choices[0].options.length === 1) begin(run.rule.action.activation.choices[0].options[0]);
           });
         }).catch(() => { if (run === candidate) finish("Could not coordinate duel tabs. Continue manually."); });
       return true;
     }
     function choose(position) {
-      if (!valid() || !["choose", "declaring", "banishing", "ready", "waiting", "approved", "suspended"].includes(run.state) || !run.rule.action.resolution[0].positions.includes(position) || run.position === position) return;
+      if (!valid() || !["choose", "declaring", "banishing", "ready", "waiting", "approved", "suspended"].includes(run.state) || !run.rule.action.activation.choices[0].options.includes(position) || run.position === position) return;
       run.position = position;
       if (["waiting", "approved"].includes(run.state)) {
         setState("ready", "Position changed. Waiting for a fresh opponent thumbs-up.");
@@ -195,7 +195,7 @@
     }
     function begin(position) {
       if (!valid() || run.state !== "choose" || !eligible(run.source) || !idle() ||
-          !run.rule.action.resolution[0].positions.includes(position)) return;
+          !run.rule.action.activation.choices[0].options.includes(position)) return;
       run.position = position;
       run.flow = run.mode;
       activate();
@@ -399,11 +399,11 @@
       ...[1, 2, 3, 4, 5].flatMap(i => [player?.["s" + i], player?.["m" + i]])]).filter(Boolean);
     const effect = () => run.rule.action.resolution[0];
     const monster = data => data.card_type === "Monster" && typeof data.name === "string" &&
-      (effect().monsterCards ? effect().monsterCards.some(selector => matchesData(selector, data) && selector.name === data.name) :
-        effect().monsterNamePrefixes.some(prefix => data.name.toLowerCase().startsWith(prefix.toLowerCase())));
+      (run.rule.action.filters.monsters.cards ? run.rule.action.filters.monsters.cards.some(selector => matchesData(selector, data) && selector.name === data.name) :
+        run.rule.action.filters.monsters.namePrefixes.some(prefix => data.name.toLowerCase().startsWith(prefix.toLowerCase())));
     const count = () => field(run.player).filter(card => card !== run.source && !card.data("face_down") &&
       monster(Object.fromEntries(["name", "card_type", "id", "passcode", "serial_number", "alt_passcode"].map(key => [key, card.data("cardfront")?.data(key)])))).length;
-    const blockedSearch = () => effect().searchAbsentFaceUpCards.find(selector => allField().some(card => !card.data("face_down") && matches(selector, card)));
+    const blockedSearch = () => effect().cases.search[0].checks.flatMap(check => check.cards).find(selector => allField().some(card => !card.data("face_down") && matches(selector, card)));
     function spells() {
       return [page.player1, page.player2].flatMap(player => {
         if (!player) return [];
@@ -417,19 +417,19 @@
     }
     function available(card) {
       return Boolean(live() && local() && card && !card.data("face_down") && field(local()).includes(card) &&
-        (getSettings().automationLists || []).some(list => list.rules.some(rule => rule.action.requires.sourceZone === "monster" && matches(rule.card, card))));
+        (getSettings().automationLists || []).some(list => list.rules.some(rule => rule.action.source.zone === "monster" && matches(rule.card, card))));
     }
     function problem(card) {
       if (!available(card)) return "Select a face-up monster you control in a live manual duel.";
       const matching = lists(card).flatMap(list => list.rules.filter(rule => matches(rule.card, card)));
       if (matching.length !== 1) return matching.length ? "Multiple enabled rules overlap for this card." : "Enable this rules list and the current duel format in Automation settings.";
-      if (matching[0].action.requires.sourceZone !== "monster" || name(card) !== matching[0].card.name) return "The card identity or source zone does not match the rule.";
-      for (const selector of [matching[0].card, ...(matching[0].action.resolution[0].monsterCards || []), ...matching[0].action.resolution[0].searchAbsentFaceUpCards]) {
+      if (matching[0].action.source.zone !== "monster" || name(card) !== matching[0].card.name) return "The card identity or source zone does not match the rule.";
+      for (const selector of [matching[0].card, ...(matching[0].action.filters.monsters.cards || []), ...matching[0].action.resolution[0].cases.search[0].checks.flatMap(check => check.cards)]) {
         const lookup = selector.passcode !== undefined ? page.getCardByPasscode : page.getCard;
         const known = typeof lookup === "function" ? lookup.call(page, selector.passcode ?? selector.id) : null;
         if (known?.name && known.name !== selector.name) return "A card identifier and name do not match the native catalog. Correct the rules list.";
       }
-      if (!matching[0].action.requires.phases.includes(page.currentPhase)) return "This phase is unsupported.";
+      if (!matching[0].action.timing.phases.includes(page.currentPhase)) return "This phase is unsupported.";
       if (!idle()) return "Wait for Duelingbook's actions to finish, then open automation again.";
       if (typeof page.exitViewing !== "function" || typeof page.viewingE !== "function" || typeof page.Send !== "function") return "Native card controls are still loading.";
       return null;
@@ -453,7 +453,7 @@
         choices: run.choices?.map(choice => ({ key: choice.key, label: choice.label, instanceId: id(choice.card),
           imageUrl: image(choice.card, run.choice === "search"), copies: choice.copies || 1, selected: run.selected.includes(choice.key) })) || [],
         maximum: run.state === "select-destroy" ? count() : 1,
-        minimum: run.state === "select-destroy" && count() > 0 && spells().length > 0 ? effect().destructionMinimum || 0 : 0 };
+        minimum: run.state === "select-destroy" && count() > 0 && spells().length > 0 ? effect().cases.destroy[0].selection.minimum || 0 : 0 };
     }
     const notify = () => changed(snapshot());
     function state(value, message) { run.state = value; run.message = message; run.since = now(); run.expected = null; notify(); }
@@ -535,7 +535,7 @@
       if (run.choice === "destroy") {
         run.selected = [];
         run.choices = spells().map(entry => ({ ...entry, key: String(id(entry.card)) }));
-        const minimum = count() > 0 && run.choices.length > 0 ? effect().destructionMinimum || 0 : 0;
+        const minimum = count() > 0 && run.choices.length > 0 ? effect().cases.destroy[0].selection.minimum || 0 : 0;
         state("select-destroy", "Choose " + (minimum ? "1 to " : "up to ") + count() + " Spells/Traps to destroy now. The count excludes this copy and uses your other face-up matching monsters at resolution. Opponents move their own cards.");
         return;
       }
@@ -584,7 +584,7 @@
         send("To hand", id(run.target));
       } else if (run.state === "select-destroy") {
         const current = spells();
-        const minimum = count() > 0 && current.length > 0 ? effect().destructionMinimum || 0 : 0;
+        const minimum = count() > 0 && current.length > 0 ? effect().cases.destroy[0].selection.minimum || 0 : 0;
         if (run.selected.length < minimum) return;
         if (run.selected.length > count() || run.selected.some(key => !current.some(entry => String(id(entry.card)) === key && run.choices.some(old => old.key === key && old.card === entry.card)))) {
           finish("The field or destruction count changed. Continue manually."); return;
@@ -714,20 +714,116 @@
       cancel: () => finish("Canceled. Check any commands already sent.", "canceled") };
   }
   function create(options) {
-    const banish = createBanish(options), trigger = createTrigger(options);
+    const read = options.getSettings, changed = options.changed || (() => {}), page = options.page;
+    const now = options.now || (() => page.performance.now());
+    let selection = null, pending = null;
+    function scopedSettings() {
+      const settings = read();
+      if (!selection) return settings;
+      // Retain the complete definitions in the invalidation key, even when only
+      // one effect is exposed to a native-operation adapter.
+      return { ...settings, automationLists: settings.automationLists.map(list => ({ ...list,
+        effectScope: JSON.stringify(settings.automationLists),
+        rules: list.rules.filter(rule => list.id === selection.list.id && rule.id === selection.rule.id)
+      })).filter(list => list.rules.length) };
+    }
+    function render(snapshot) {
+      changed(snapshot && { ...snapshot, effectId: selection?.rule.id,
+        manualResponsibilities: (selection?.rule.action.coverage.manual || []).map(code => core.AUTOMATION_MANUAL[code]) });
+    }
+    const config = { ...options, getSettings: scopedSettings, changed: render };
+    const banish = createBanish(config), trigger = createTrigger(config);
     let active = banish;
+    const adapter = entry => entry.rule.action.timing.kind === "optional-trigger" ? trigger : banish;
+    function candidates(card) {
+      return (read().automationLists || []).filter(list => list.enabled && list.formats.includes(page.duelFormat))
+        .flatMap(list => list.rules.filter(rule => matches(rule.card, card) &&
+          (rule.action.source.zone === "graveyard" ? page.player1?.grave_arr?.includes(card) :
+            [1, 2, 3, 4, 5].some(index => page.player1?.["m" + index] === card)))
+          .map(rule => ({ list, rule })));
+    }
+    function inspect(entry, callback) {
+      const previous = selection; selection = entry;
+      try { return callback(adapter(entry)); } finally { selection = previous; }
+    }
+    function fingerprint() {
+      return JSON.stringify([read().automationLists, page.duelFormat, page.duelId, page.username, page.turnCount, page.currentPhase]);
+    }
+    function pendingValid() {
+      return pending && pending.key === fingerprint() && pending.socket === page.websocket &&
+        pending.turnPlayer === page.turn_player && pending.player === page.player1 && !page.document?.hidden &&
+        candidates(pending.card).some(entry => inspect(entry, engine => engine.available(pending.card)));
+    }
+    function pendingSnapshot() {
+      return { state: pending.finished ? "canceled" : "choose", message: pending.message,
+        cardName: name(pending.card), effectLabel: "Choose an effect", list: "Installed effects", version: "", journal: [],
+        positions: [], trigger: true, effectPicker: true, finished: pending.finished, options: pending.entries.map((entry, index) => ({
+          key: "effect:" + index, label: entry.rule.label + " (" + entry.list.name + ")",
+          disabled: pending.entries.filter(other => other.rule.id === entry.rule.id).length > 1
+        })) };
+    }
+    function stopPending(message) {
+      if (!pending || pending.finished) return;
+      pending.finished = true; pending.message = message; changed(pendingSnapshot());
+    }
+    function start(entry, card, prepareOptions) {
+      selection = entry; pending = null; active = adapter(entry);
+      return active.prepare(card, prepareOptions);
+    }
     const result = {
-      available: card => banish.available(card) || trigger.available(card),
-      eligible: card => trigger.available(card) ? trigger.eligible(card) : banish.eligible(card),
-      prepare(card, options) {
-        if (active.snapshot() && !active.snapshot().finished) return false;
-        active = trigger.available(card) ? trigger : banish;
-        return active.prepare(card, options);
+      available(card) {
+        const previous = selection; selection = null;
+        try { return banish.available(card) || trigger.available(card); } finally { selection = previous; }
       },
-      observe(event) { banish.observe(event); trigger.observe(event); }
+      eligible(card) {
+        const entries = candidates(card);
+        return entries.some(entry => entries.filter(other => other.rule.id === entry.rule.id).length === 1 &&
+          inspect(entry, engine => engine.eligible(card)));
+      },
+      prepare(card, prepareOptions = {}) {
+        if ((pending && !pending.finished) || (active.snapshot() && !active.snapshot().finished)) return false;
+        selection = null; pending = null;
+        const entries = candidates(card);
+        if (entries.length === 1) return start(entries[0], card, prepareOptions);
+        if (entries.length > 1 && result.available(card)) {
+          pending = { card, entries, options: prepareOptions, key: fingerprint(), socket: page.websocket,
+            turnPlayer: page.turn_player, player: page.player1, since: now(), finished: false,
+            message: "Choose an effect before declaring. Duplicate effect IDs are conflicting implementations and cannot run." };
+          changed(pendingSnapshot()); return true;
+        }
+        active = trigger.available(card) ? trigger : banish;
+        return active.prepare(card, prepareOptions);
+      },
+      begin(choice) {
+        if (!pending) return active.begin?.(choice);
+        if (pending.finished) return;
+        if (!pendingValid()) { stopPending("Duel or rules changed. Open automation again."); return; }
+        const option = pendingSnapshot().options.find(option => option.key === choice && !option.disabled);
+        if (!option) return;
+        const entry = pending.entries[Number(choice.slice(7))], card = pending.card, prepareOptions = pending.options;
+        start(entry, card, prepareOptions);
+      },
+      observe(event) {
+        if (pending && !pending.finished && (!pendingValid() || (event.stage === "receive" && !passive.has(event.play))))
+          stopPending("Another action changed the duel. Choose the effect again.");
+        banish.observe(event); trigger.observe(event);
+      },
+      outgoing(message) {
+        if (pending && !pending.finished && message?.action === "Duel" &&
+          (!passive.has(message.play) || (message.play === "Duel message" && /^\s*\//.test(message.message || ""))))
+          stopPending("A manual action interrupted effect selection.");
+        active.outgoing(message);
+      },
+      tick() {
+        if (pending && !pending.finished && (!pendingValid() || now() - pending.since > 120000)) stopPending("Effect selection expired or the duel changed.");
+        active.tick();
+      },
+      cancel() { if (pending) stopPending("Canceled effect selection."); else active.cancel(); },
+      snapshot() { return pending ? pendingSnapshot() : active.snapshot() && { ...active.snapshot(), effectId: selection?.rule.id,
+        manualResponsibilities: (selection?.rule.action.coverage.manual || []).map(code => core.AUTOMATION_MANUAL[code]) }; }
     };
-    for (const method of ["choose", "activate", "selectMode", "begin", "release", "tick", "outgoing", "cancel", "snapshot", "selectCard", "confirmCards"]) {
-      result[method] = (...args) => active[method]?.(...args);
+    for (const method of ["choose", "activate", "selectMode", "release", "selectCard", "confirmCards"]) {
+      result[method] = (...args) => { if (!pending) return active[method]?.(...args); };
     }
     return result;
   }

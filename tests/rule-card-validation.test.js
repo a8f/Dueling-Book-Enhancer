@@ -7,9 +7,11 @@ const list = (name = "Known card", id = 123) => ({ rules: [{ card: { id, name },
 test("choice rules validate branch prohibitions without requiring a fixed result card", () => {
   const validator = create({ requestPermission: async () => false });
   const rules = list();
-  rules.rules[0].action.resolution = [{ op: "choose-search-or-destroy", searchAbsentFaceUpCards: [{ id: 789, name: "Prohibition" }] }];
+  rules.rules[0].action = { filters: { monsters: {} }, resolution: [{ op: "branch", cases: {
+    search: [{ op: "search", checks: [{ check: "absent-face-up", cards: [{ id: 789, name: "Prohibition" }] }] }]
+  } }] };
   assert.deepEqual(validator.check(rules), { checked: 0, unknown: ["DB ID 123", "DB ID 789"] });
-  rules.rules[0].action.resolution[0].monsterCards = [{ id: 456, name: "Example member" }];
+  rules.rules[0].action.filters.monsters.cards = [{ id: 456, name: "Example member" }];
   assert.deepEqual(validator.check(rules), { checked: 0, unknown: ["DB ID 123", "DB ID 456", "DB ID 789"] });
 });
 

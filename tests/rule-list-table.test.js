@@ -7,9 +7,7 @@ function fixture(count = 23) {
   return { schemaVersion: 4, id: "test.table", name: "Example list", version: "1.0.0", enabled: true,
     formats: ["au"], rules: Array.from({ length: count }, (_, i) => ({ id: "card-" + i,
       card: { passcode: String(9000001 + i).padStart(8, "0"), name: "Card " + String(i + 1).padStart(2, "0") }, label: "Effect " + (i + 1),
-      action: { schemaVersion: 1, requires: { sourceZone: "graveyard", ownTurn: true, phases: ["M1", "M2"] },
-      activation: [{ op: "banish", card: "source" }],
-      resolution: [{ op: "special-summon", from: "deck", card: { id: 90000101, name: "Result" }, positions: ["ATK", "DEF"] }] } })) };
+      action: core.banishSummonAction({ phases: ["M1", "M2"], card: { id: 90000101, name: "Result" }, positions: ["ATK", "DEF"] }) })) };
 }
 function harness() {
   const nodes = [];
